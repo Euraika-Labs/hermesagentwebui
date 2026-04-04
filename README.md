@@ -9,10 +9,17 @@ A first-party-style web interface for Hermes Agent with real runtime awareness, 
 
 Repo
 - GitHub: https://github.com/Euraika-Labs/hermesagentwebui
+- Release: https://github.com/Euraika-Labs/hermesagentwebui/releases/tag/v0.1.0-rc1
 
 Current status
 - Release-candidate quality for local/self-hosted admin usage
 - Verified with lint, unit tests, build, and Playwright e2e coverage
+- Public repository with protected `main`, CI, CodeQL, Dependabot, issue templates, and admin/ops docs
+
+Why this project is interesting
+- It is not just a generic chat shell — it exposes Hermes-native operational concepts
+- It combines chat UX with runtime health, approvals, artifacts, run history, MCP diagnostics, and durable audit trails
+- It is designed for real self-hosted admin usage rather than demo-only AI chat flows
 
 Highlights
 - Streaming Hermes chat UI with session management
