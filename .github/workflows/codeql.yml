@@ -10,7 +10,6 @@ on:
 
 jobs:
   analyze:
-    if: ${{ !github.event.repository.private }}
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
