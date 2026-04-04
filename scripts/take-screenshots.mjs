@@ -1,3 +1,5 @@
+/* eslint-env node */
+
 import { chromium } from '@playwright/test';
 import path from 'node:path';
 
