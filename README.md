@@ -53,6 +53,28 @@ Verification
 - `npm run build`
 - `npm run test:e2e`
 
+Screenshots
+
+Login
+
+![Hermes Workspace login screen](docs/assets/screenshots/login.png)
+
+Chat workspace
+
+![Hermes Workspace empty chat view](docs/assets/screenshots/chat-empty.png)
+
+Runtime-aware chat
+
+![Hermes Workspace active chat with tools and runtime output](docs/assets/screenshots/chat-runtime.png)
+
+Runtime health
+
+![Hermes Workspace runtime health page](docs/assets/screenshots/runtime-health.png)
+
+Runs explorer
+
+![Hermes Workspace runs explorer](docs/assets/screenshots/runs-explorer.png)
+
 Repository structure
 - `src/app` — routes and API endpoints
 - `src/features` — UI feature modules
