@@ -14,7 +14,6 @@ export function MemoryEditor({ scope }: { scope: 'user' | 'agent' }) {
   const profileEntries = data?.entries ?? [];
   const globalEntries = data?.globalEntries ?? [];
   const profileRaw = data?.raw ?? '';
-  const globalRaw = data?.globalRaw ?? '';
 
   useEffect(() => {
     setValue(profileRaw);

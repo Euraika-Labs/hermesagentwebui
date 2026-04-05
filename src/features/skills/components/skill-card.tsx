@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileCode, FileText, FolderOpen, Tag } from 'lucide-react';
+import { FileCode, FolderOpen, Tag } from 'lucide-react';
 import { describeSkillProvenance, describeSkillScope } from '@/lib/presentation/capability-labels';
 import type { Skill } from '@/lib/types/skill';
 

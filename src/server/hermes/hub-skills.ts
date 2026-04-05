@@ -189,7 +189,7 @@ export function listHubSkills(): HubSkill[] {
  */
 export function searchHubSkills(query: string, source = 'skills-sh', limit = 20): HubSkill[] {
   try {
-    const output = execFileSync('hermes', ['skills', 'search', query, '--source', source, '--limit', String(limit)], {
+    execFileSync('hermes', ['skills', 'search', query, '--source', source, '--limit', String(limit)], {
       encoding: 'utf-8',
       timeout: 15000,
     });

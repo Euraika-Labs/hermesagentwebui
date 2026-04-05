@@ -158,6 +158,7 @@ function createMockStream(runId: string, profileId: string | null | undefined, s
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function createPassthroughPersistentStream(runId: string, profileId: string, sessionId: string, upstream: ReadableStream<Uint8Array>) {
   const reader = upstream.getReader();
   const decoder = new TextDecoder();
