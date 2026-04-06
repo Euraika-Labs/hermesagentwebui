@@ -1,14 +1,33 @@
+# Dependencies
 node_modules/
+
+# Build output
 .next/
+tsconfig.tsbuildinfo
+
+# Auto-generated
+next-env.d.ts
+
+# Test output
 playwright-report/
 test-results/
 coverage/
+
+# Runtime data
 .data/
+
+# Environment
 .env
 .env.local
+
+# Logs
 *.log
+
+# Agent/tool artifacts
 .claude-flow/
 .hermes/
 .remember/
 .swarm/
+
+# Dev screenshots
 scripts/screenshots/
