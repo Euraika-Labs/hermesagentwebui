@@ -1,21 +1,38 @@
-name: Feature request
-description: Suggest an improvement or new feature
+name: Feature Request
+description: Suggest an improvement or new feature for Pan
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
       label: Problem / motivation
-      description: What problem are you trying to solve?
+      description: What problem are you trying to solve? Why does this matter?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
+      description: How would you like this to work?
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
+      description: Any alternative solutions or workarounds you've thought about?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Pan does this relate to?
+      options:
+        - Chat
+        - Skills
+        - Extensions / MCP
+        - Memory
+        - Profiles
+        - Settings / Runtime
+        - CLI / Daemon
+        - Setup Wizard
+        - Other

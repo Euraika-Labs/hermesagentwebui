@@ -1,7 +1,15 @@
-# Default code owners
-* @anubissbe
+# Default code owners — review required for all changes
+* @Anubissbe
 
-docs/ @anubissbe
-src/server/ @anubissbe
-src/features/ @anubissbe
-.github/ @anubissbe
+# Core infrastructure
+.github/          @Anubissbe
+bin/               @Anubissbe
+src/server/        @Anubissbe
+
+# UI features
+src/features/      @Anubissbe
+src/components/    @Anubissbe
+
+# Documentation
+docs/              @Anubissbe
+*.md               @Anubissbe

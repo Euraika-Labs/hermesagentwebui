@@ -1,0 +1,42 @@
+# Dev / source files — not needed in the npm package
+src/
+scripts/
+tests/
+__tests__/
+*.test.*
+*.spec.*
+
+# Config files
+tsconfig.json
+tailwind.config.*
+postcss.config.*
+next.config.*
+vitest.config.*
+playwright.config.*
+eslint.config.*
+.eslintrc*
+.prettierrc*
+prettier.config.*
+
+# Dev tooling
+.vscode/
+.idea/
+.github/
+.gitlab-ci.yml
+.husky/
+.claude*
+CLAUDE.md
+
+# Source control
+.git/
+.gitignore
+
+# Build tooling (source-side)
+node_modules/
+
+# Misc
+*.tgz
+.DS_Store
+Thumbs.db
+.env
+.env.local
