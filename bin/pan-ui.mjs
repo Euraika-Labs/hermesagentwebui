@@ -4,17 +4,23 @@
  * pan-ui — CLI launcher with interactive setup wizard.
  *
  * Usage:
- *   npx pan-ui              # start (runs setup on first launch)
- *   npx pan-ui setup        # re-run setup wizard
- *   npx pan-ui --port 8080  # custom port
+ *   npx pan-ui                  # start foreground (runs setup on first launch)
+ *   npx pan-ui --daemon         # start in background (daemonize)
+ *   npx pan-ui stop             # stop background daemon
+ *   npx pan-ui status           # check if daemon is running
+ *   npx pan-ui logs             # tail daemon log output
+ *   npx pan-ui setup            # re-run setup wizard
+ *   npx pan-ui service install  # install systemd user service
+ *   npx pan-ui service remove   # remove systemd user service
+ *   npx pan-ui --port 8080      # custom port
  */
 
 import { createInterface } from 'node:readline';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, unlinkSync, openSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { execSync, spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import crypto from 'node:crypto';
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
@@ -23,6 +29,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PKG_ROOT = resolve(__dirname, '..');
 const ENV_PATH = join(PKG_ROOT, '.env.local');
+const RUN_DIR = join(homedir(), '.pan-ui');
+const PID_FILE = join(RUN_DIR, 'pan-ui.pid');
+const LOG_FILE = join(RUN_DIR, 'pan-ui.log');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -306,6 +315,47 @@ function findStandaloneServer() {
   return null;
 }
 
+/**
+ * Patch required-server-files.json so the standalone build can find its
+ * assets regardless of where npm installed the package.  The build bakes
+ * in the absolute path of the *build* machine — we rewrite it to the
+ * current installation path at startup.
+ */
+function patchStandalonePaths() {
+  const rsfPath = join(PKG_ROOT, '.next', 'standalone', '.next', 'required-server-files.json');
+  if (!existsSync(rsfPath)) return;
+
+  try {
+    const raw = readFileSync(rsfPath, 'utf-8');
+    const data = JSON.parse(raw);
+    let changed = false;
+
+    const standaloneDir = join(PKG_ROOT, '.next', 'standalone');
+
+    if (data.appDir && data.appDir !== standaloneDir) {
+      data.appDir = standaloneDir;
+      data.relativeAppDir = '';
+      changed = true;
+    }
+
+    if (data.config?.outputFileTracingRoot && data.config.outputFileTracingRoot !== standaloneDir) {
+      data.config.outputFileTracingRoot = standaloneDir;
+      changed = true;
+    }
+
+    if (data.config?.turbopack?.root && data.config.turbopack.root !== standaloneDir) {
+      data.config.turbopack.root = standaloneDir;
+      changed = true;
+    }
+
+    if (changed) {
+      writeFileSync(rsfPath, JSON.stringify(data), 'utf-8');
+    }
+  } catch {
+    // Non-fatal — server may still work without the patch
+  }
+}
+
 function startServer(env, portOverride) {
   const port = portOverride || env.PORT || '3199';
 
@@ -322,6 +372,7 @@ function startServer(env, portOverride) {
 
   if (standaloneServer) {
     // Standalone mode — shipped as npm package
+    patchStandalonePaths();
     startBanner(port);
     const child = spawn('node', [standaloneServer], {
       cwd: join(PKG_ROOT, '.next', 'standalone'),
@@ -354,6 +405,324 @@ function startServer(env, portOverride) {
   }
 }
 
+// ─── Daemon management ───────────────────────────────────────────────────────
+
+function ensureRunDir() {
+  if (!existsSync(RUN_DIR)) mkdirSync(RUN_DIR, { recursive: true });
+}
+
+function readPid() {
+  if (!existsSync(PID_FILE)) return null;
+  const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
+  if (isNaN(pid)) return null;
+  return pid;
+}
+
+function isProcessRunning(pid) {
+  try {
+    process.kill(pid, 0); // signal 0 = check existence
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getDaemonStatus() {
+  const pid = readPid();
+  if (!pid) return { running: false, pid: null };
+  if (isProcessRunning(pid)) return { running: true, pid };
+  // Stale PID file
+  try { unlinkSync(PID_FILE); } catch {}
+  return { running: false, pid: null };
+}
+
+function startDaemon(env, portOverride) {
+  const { running, pid: existingPid } = getDaemonStatus();
+  if (running) {
+    console.log(`  ${yellow('!')} Pan UI is already running (PID ${existingPid})`);
+    console.log(`  ${dim('Stop with:')} ${cyan('npx pan-ui stop')}`);
+    process.exit(0);
+  }
+
+  ensureRunDir();
+
+  const port = portOverride || env.PORT || '3199';
+  const serverEnv = {
+    ...process.env,
+    ...env,
+    PORT: port,
+    NODE_ENV: 'production',
+    HOSTNAME: '0.0.0.0',
+  };
+
+  const standaloneServer = findStandaloneServer();
+  let cmd, cmdArgs, cwd;
+
+  if (standaloneServer) {
+    patchStandalonePaths();
+    cmd = process.execPath; // node
+    cmdArgs = [standaloneServer];
+    cwd = join(PKG_ROOT, '.next', 'standalone');
+  } else {
+    const hasProductionBuild = existsSync(join(PKG_ROOT, '.next', 'BUILD_ID'));
+    const nextCmd = hasProductionBuild ? 'start' : 'dev';
+    cmd = 'npx';
+    cmdArgs = ['next', nextCmd, '-p', port];
+    cwd = PKG_ROOT;
+  }
+
+  // Open log file for stdout/stderr
+  const logFd = openSync(LOG_FILE, 'a');
+
+  const child = spawn(cmd, cmdArgs, {
+    cwd,
+    env: serverEnv,
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+
+  child.unref();
+
+  writeFileSync(PID_FILE, String(child.pid), 'utf-8');
+
+  console.log('');
+  console.log(bold('  ╔══════════════════════════════════════════╗'));
+  console.log(bold('  ║') + green('        ⚡ Pan UI started (daemon)         ') + bold('║'));
+  console.log(bold('  ╚══════════════════════════════════════════╝'));
+  console.log('');
+  console.log(`  ${dim('PID:')}     ${cyan(String(child.pid))}`);
+  console.log(`  ${dim('Local:')}   ${cyan(`http://localhost:${port}`)}`);
+  console.log(`  ${dim('Log:')}     ${cyan(LOG_FILE)}`);
+  console.log('');
+  console.log(`  ${dim('Stop with:')}    ${cyan('npx pan-ui stop')}`);
+  console.log(`  ${dim('View logs:')}    ${cyan('npx pan-ui logs')}`);
+  console.log(`  ${dim('Check status:')} ${cyan('npx pan-ui status')}`);
+  console.log('');
+}
+
+function stopDaemon() {
+  const { running, pid } = getDaemonStatus();
+  if (!running) {
+    console.log(`  ${dim('Pan UI is not running.')}`);
+    process.exit(0);
+  }
+
+  try {
+    process.kill(pid, 'SIGTERM');
+    console.log(`  ${green('✓')} Pan UI stopped (PID ${pid})`);
+  } catch (err) {
+    console.log(`  ${red('✗')} Failed to stop PID ${pid}: ${err.message}`);
+  }
+
+  try { unlinkSync(PID_FILE); } catch {}
+}
+
+function showStatus() {
+  const { running, pid } = getDaemonStatus();
+  const env = loadEnv(ENV_PATH);
+  const port = env.PORT || '3199';
+
+  if (running) {
+    console.log('');
+    console.log(`  ${green('●')} Pan UI is ${green('running')}`);
+    console.log(`  ${dim('PID:')}     ${cyan(String(pid))}`);
+    console.log(`  ${dim('Local:')}   ${cyan(`http://localhost:${port}`)}`);
+    console.log(`  ${dim('Log:')}     ${cyan(LOG_FILE)}`);
+    console.log('');
+  } else {
+    console.log('');
+    console.log(`  ${red('●')} Pan UI is ${red('stopped')}`);
+    console.log(`  ${dim('Start with:')} ${cyan('npx pan-ui --daemon')}`);
+    console.log('');
+  }
+}
+
+function showLogs() {
+  if (!existsSync(LOG_FILE)) {
+    console.log(`  ${dim('No log file found. Start the daemon first.')}`);
+    process.exit(0);
+  }
+
+  // Tail the last 50 lines, then follow
+  const child = spawn('tail', ['-n', '50', '-f', LOG_FILE], {
+    stdio: 'inherit',
+  });
+  process.on('SIGINT', () => { child.kill('SIGINT'); process.exit(0); });
+  child.on('exit', (code) => process.exit(code ?? 0));
+}
+
+// ─── Systemd service management ─────────────────────────────────────────────
+
+function getServiceDir() {
+  return join(homedir(), '.config', 'systemd', 'user');
+}
+
+const SERVICE_NAME = 'pan-ui';
+
+function getServicePath() {
+  return join(getServiceDir(), `${SERVICE_NAME}.service`);
+}
+
+function generateServiceUnit(env) {
+  const port = env.PORT || '3199';
+  const nodePath = process.execPath;
+  const binPath = resolve(__dirname, 'pan-ui.mjs');
+
+  // Build environment lines (skip PORT — we add it explicitly below)
+  const envLines = [];
+  for (const [key, value] of Object.entries(env)) {
+    if (key && value && key !== 'PORT') envLines.push(`Environment=${key}=${value}`);
+  }
+  envLines.push(`Environment=NODE_ENV=production`);
+  envLines.push(`Environment=PORT=${port}`);
+  envLines.push(`Environment=HOSTNAME=0.0.0.0`);
+
+  return `[Unit]
+Description=Pan UI — WebUI for Hermes Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${nodePath} ${binPath}
+WorkingDirectory=${PKG_ROOT}
+Restart=on-failure
+RestartSec=5
+${envLines.join('\n')}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pan-ui
+
+[Install]
+WantedBy=default.target
+`;
+}
+
+async function serviceInstall() {
+  if (platform() !== 'linux') {
+    console.log(`  ${red('✗')} Systemd services are only supported on Linux.`);
+    console.log(`  ${dim('Use')} ${cyan('npx pan-ui --daemon')} ${dim('instead.')}`);
+    process.exit(1);
+  }
+
+  // Ensure setup has been run
+  const env = loadEnv(ENV_PATH);
+  if (Object.keys(env).length === 0) {
+    console.log(`  ${yellow('!')} No configuration found. Running setup first...`);
+    console.log('');
+    const newEnv = await setup(true);
+    rl.close();
+    return doServiceInstall(newEnv);
+  }
+  rl.close();
+  return doServiceInstall(env);
+}
+
+function doServiceInstall(env) {
+  const serviceDir = getServiceDir();
+  const servicePath = getServicePath();
+
+  mkdirSync(serviceDir, { recursive: true });
+
+  const unit = generateServiceUnit(env);
+  writeFileSync(servicePath, unit, 'utf-8');
+
+  console.log('');
+  console.log(`  ${green('✓')} Service file written to ${cyan(servicePath)}`);
+
+  // Reload and enable
+  try {
+    execSync('systemctl --user daemon-reload', { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Systemd daemon reloaded`);
+  } catch {
+    console.log(`  ${yellow('!')} Could not reload systemd daemon (are you in a user session?)`);
+  }
+
+  try {
+    execSync(`systemctl --user enable ${SERVICE_NAME}`, { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Service enabled (starts on login)`);
+  } catch {
+    console.log(`  ${yellow('!')} Could not enable service`);
+  }
+
+  try {
+    execSync(`systemctl --user start ${SERVICE_NAME}`, { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Service started`);
+  } catch {
+    console.log(`  ${yellow('!')} Could not start service — try: systemctl --user start ${SERVICE_NAME}`);
+  }
+
+  // Enable lingering so service runs even when not logged in
+  try {
+    execSync(`loginctl enable-linger ${process.env.USER || ''}`, { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Lingering enabled (survives logout)`);
+  } catch {
+    console.log(`  ${dim('Tip: run')} ${cyan(`loginctl enable-linger`)} ${dim('so the service survives logout')}`);
+  }
+
+  const port = env.PORT || '3199';
+  console.log('');
+  console.log(`  ${dim('Local:')}   ${cyan(`http://localhost:${port}`)}`);
+  console.log('');
+  console.log(`  ${dim('Manage with:')}`);
+  console.log(`    ${cyan(`systemctl --user status ${SERVICE_NAME}`)}`);
+  console.log(`    ${cyan(`systemctl --user restart ${SERVICE_NAME}`)}`);
+  console.log(`    ${cyan(`journalctl --user -u ${SERVICE_NAME} -f`)}`);
+  console.log(`    ${cyan(`npx pan-ui service remove`)}`);
+  console.log('');
+}
+
+function serviceRemove() {
+  if (platform() !== 'linux') {
+    console.log(`  ${red('✗')} Systemd services are only supported on Linux.`);
+    process.exit(1);
+  }
+
+  const servicePath = getServicePath();
+
+  // Stop and disable
+  try {
+    execSync(`systemctl --user stop ${SERVICE_NAME}`, { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Service stopped`);
+  } catch {}
+
+  try {
+    execSync(`systemctl --user disable ${SERVICE_NAME}`, { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Service disabled`);
+  } catch {}
+
+  if (existsSync(servicePath)) {
+    unlinkSync(servicePath);
+    console.log(`  ${green('✓')} Removed ${servicePath}`);
+  }
+
+  try {
+    execSync('systemctl --user daemon-reload', { stdio: 'ignore' });
+    console.log(`  ${green('✓')} Systemd daemon reloaded`);
+  } catch {}
+
+  console.log('');
+  console.log(`  ${dim('Pan UI service has been fully removed.')}`);
+  console.log('');
+}
+
+function serviceStatus() {
+  if (platform() !== 'linux') {
+    console.log(`  ${red('✗')} Systemd services are only supported on Linux.`);
+    process.exit(1);
+  }
+
+  try {
+    const output = execSync(`systemctl --user status ${SERVICE_NAME} 2>&1`, { encoding: 'utf-8' });
+    console.log(output);
+  } catch (err) {
+    // systemctl returns non-zero for inactive services
+    if (err.stdout) console.log(err.stdout);
+    else console.log(`  ${dim('Service not installed. Run:')} ${cyan('npx pan-ui service install')}`);
+  }
+}
+
 // ─── CLI entry point ────────────────────────────────────────────────────────
 
 async function main() {
@@ -371,8 +740,65 @@ async function main() {
     portOverride = args[shortPortIdx + 1];
   }
 
+  // Parse --daemon / -d flag
+  const isDaemon = args.includes('--daemon') || args.includes('-d');
+
+  // ── Stop ──────────────────────────────────────────────────────────────
+
+  if (command === 'stop') {
+    rl.close();
+    stopDaemon();
+    process.exit(0);
+  }
+
+  // ── Status ────────────────────────────────────────────────────────────
+
+  if (command === 'status') {
+    rl.close();
+    showStatus();
+    process.exit(0);
+  }
+
+  // ── Logs ──────────────────────────────────────────────────────────────
+
+  if (command === 'logs') {
+    rl.close();
+    showLogs();
+    return; // showLogs takes over the process
+  }
+
+  // ── Service management ────────────────────────────────────────────────
+
+  if (command === 'service') {
+    const subcommand = args[1];
+    if (subcommand === 'install') {
+      await serviceInstall();
+      process.exit(0);
+    }
+    if (subcommand === 'remove' || subcommand === 'uninstall') {
+      rl.close();
+      serviceRemove();
+      process.exit(0);
+    }
+    if (subcommand === 'status') {
+      rl.close();
+      serviceStatus();
+      process.exit(0);
+    }
+    // Unknown subcommand
+    rl.close();
+    console.log('');
+    console.log(`  ${dim('Usage:')}`);
+    console.log(`    ${cyan('npx pan-ui service install')}    Install systemd user service`);
+    console.log(`    ${cyan('npx pan-ui service remove')}     Remove systemd user service`);
+    console.log(`    ${cyan('npx pan-ui service status')}     Show service status`);
+    console.log('');
+    process.exit(1);
+  }
+
+  // ── Setup ─────────────────────────────────────────────────────────────
+
   if (command === 'setup') {
-    // Explicit setup
     const env = await setup(true);
     rl.close();
     console.log(`  ${dim('Start with:')} ${cyan('npx pan-ui')}`);
@@ -380,15 +806,23 @@ async function main() {
     process.exit(0);
   }
 
+  // ── Help ──────────────────────────────────────────────────────────────
+
   if (command === '--help' || command === '-h') {
     console.log('');
     console.log(bold('  pan-ui') + dim(' — Beautiful WebUI for Hermes Agent'));
     console.log('');
     console.log('  Usage:');
-    console.log(`    ${cyan('npx pan-ui')}              Start the workspace`);
-    console.log(`    ${cyan('npx pan-ui setup')}        Run setup wizard`);
-    console.log(`    ${cyan('npx pan-ui --port 8080')}  Custom port`);
-    console.log(`    ${cyan('npx pan-ui --help')}       Show this help`);
+    console.log(`    ${cyan('npx pan-ui')}                  Start the workspace (foreground)`);
+    console.log(`    ${cyan('npx pan-ui --daemon')}         Start in background`);
+    console.log(`    ${cyan('npx pan-ui stop')}             Stop background daemon`);
+    console.log(`    ${cyan('npx pan-ui status')}           Check if running`);
+    console.log(`    ${cyan('npx pan-ui logs')}             Tail daemon logs`);
+    console.log(`    ${cyan('npx pan-ui setup')}            Run setup wizard`);
+    console.log(`    ${cyan('npx pan-ui service install')}  Install as systemd user service`);
+    console.log(`    ${cyan('npx pan-ui service remove')}   Remove systemd service`);
+    console.log(`    ${cyan('npx pan-ui --port 8080')}      Custom port`);
+    console.log(`    ${cyan('npx pan-ui --help')}           Show this help`);
     console.log('');
     console.log('  Environment variables:');
     console.log(`    ${dim('HERMES_HOME')}                 Path to Hermes home (default: ~/.hermes)`);
@@ -403,9 +837,16 @@ async function main() {
     process.exit(0);
   }
 
-  // Default: run setup if first time, then start
+  // ── Default: setup if first time, then start ──────────────────────────
+
   const env = await setup(false);
   rl.close();
+
+  if (isDaemon) {
+    await startDaemon(env, portOverride);
+    process.exit(0);
+  }
+
   startServer(env, portOverride);
 }
 
