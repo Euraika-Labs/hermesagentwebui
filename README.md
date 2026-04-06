@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Euraika-Labs/pan-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/Euraika-Labs/pan-ui/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Euraika-Labs/pan-ui/actions/workflows/codeql.yml/badge.svg)](https://github.com/Euraika-Labs/pan-ui/actions/workflows/codeql.yml)
+[![npm](https://img.shields.io/npm/v/@euraika-labs/pan-ui)](https://www.npmjs.com/package/@euraika-labs/pan-ui)
 [![Release](https://img.shields.io/github/v/release/Euraika-Labs/pan-ui?display_name=tag)](https://github.com/Euraika-Labs/pan-ui/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
@@ -86,7 +87,7 @@ Runtime status, health monitoring, model selection, run history, audit browser, 
 ### Via npx (recommended)
 
 ```bash
-npx pan-ui
+npx @euraika-labs/pan-ui
 ```
 
 The setup wizard will guide you through connecting to your Hermes runtime on first launch.

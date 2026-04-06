@@ -1,0 +1,55 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run test
+
+      # Build + copy static assets into standalone
+      - run: npm run package
+
+      # Verify the standalone server boots
+      - name: Smoke test
+        run: |
+          PORT=3199 node .next/standalone/server.js &
+          sleep 4
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3199/)
+          kill %1 || true
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "307" ]; then
+            echo "Smoke test failed: HTTP $STATUS"
+            exit 1
+          fi
+          echo "Smoke test passed: HTTP $STATUS"
+
+      # Sync version from release tag (v0.3.0 → 0.3.0)
+      - name: Set version from tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "Publishing version $VERSION"
+
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
