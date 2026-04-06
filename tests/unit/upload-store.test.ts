@@ -7,7 +7,7 @@ describe('upload store', () => {
       name: 'brief.txt',
       size: 128,
       type: 'text/plain',
-      content: 'Hermes Workspace brief',
+      content: 'Pan workspace brief',
     });
 
     expect(getUpload(upload.id)?.name).toBe('brief.txt');

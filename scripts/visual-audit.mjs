@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 
 const BASE = 'http://localhost:3199';
-const SHOTS = '/opt/projects/hermesagentwebui/scripts/screenshots';
+const SHOTS = '/opt/projects/pan-ui/scripts/screenshots';
 mkdirSync(SHOTS, { recursive: true });
 
 let shotIndex = 0;

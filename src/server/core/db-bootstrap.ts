@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execPython } from '@/server/core/python-exec';
 
-const DATA_DIR = '/opt/projects/hermesagentwebui/.data';
+const DATA_DIR = '/opt/projects/pan-ui/.data';
 
 type MigrationTarget = 'runtime' | 'audit';
 

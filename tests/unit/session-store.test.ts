@@ -14,12 +14,12 @@ import {
 describe('session store', () => {
   it('creates sessions and appends messages', () => {
     const session = createSession();
-    addUserMessage(session.id, 'Hello Hermes');
+    addUserMessage(session.id, 'Hello Pan');
     addAssistantMessage(session.id, 'Hi there');
 
     const updated = getSession(session.id);
     expect(updated?.messages).toHaveLength(2);
-    expect(updated?.title).toContain('Hello Hermes');
+    expect(updated?.title).toContain('Hello Pan');
   });
 
   it('lists sessions in descending updated order', () => {
@@ -32,13 +32,13 @@ describe('session store', () => {
     const session = createSession();
     addUserMessage(session.id, 'Sprint three search term');
     renameSession(session.id, 'Renamed session');
-    updateSessionSettings(session.id, { model: 'Hermes Fast', policyPreset: 'builder' });
+    updateSessionSettings(session.id, { model: 'claude-opus-4.6', policyPreset: 'builder' });
     archiveSession(session.id);
 
     const updated = getSession(session.id);
     expect(updated?.title).toBe('Renamed session');
     expect(updated?.archived).toBe(true);
-    expect(updated?.settings.model).toBe('Hermes Fast');
+    expect(updated?.settings.model).toBe('claude-opus-4.6');
     expect(updated?.settings.policyPreset).toBe('builder');
 
     const forked = forkSession(session.id);

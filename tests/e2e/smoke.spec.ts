@@ -13,24 +13,24 @@ test('user can sign in, create a chat, send a message, and receive a streamed re
   await page.getByRole('button', { name: 'Continue' }).click();
 
   await expect(page).toHaveURL(/\/chat$/);
-  await expect(page.getByRole('heading', { name: 'Hermes chat workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pan workspace' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'New chat', exact: true })).toBeVisible();
 
-  await page.getByPlaceholder('Message Hermes…').fill('Help me plan Hermes Workspace');
+  await page.getByPlaceholder('Message Pan…').fill('Help me plan the Pan workspace');
   await page.locator('input[type="file"]').setInputFiles({
     name: 'brief.txt',
     mimeType: 'text/plain',
-    buffer: Buffer.from('Hermes Workspace product brief'),
+    buffer: Buffer.from('Pan workspace product brief'),
   });
   await expect(page.getByText('brief.txt').first()).toBeVisible();
   await page.getByRole('button', { name: 'Voice input' }).click();
-  await expect(page.getByPlaceholder('Message Hermes…')).toHaveValue(/Voice input captured/);
+  await expect(page.getByPlaceholder('Message Pan…')).toHaveValue(/Voice input captured/);
   await page.getByRole('button', { name: 'Send' }).click();
   await page.getByRole('button', { name: 'Approve' }).click();
 
-  await expect(page.locator('p').filter({ hasText: 'Help me plan Hermes Workspace Voice input captured from mock microphone control.' }).last()).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: 'Help me plan the Pan workspace Voice input captured from mock microphone control.' }).last()).toBeVisible();
   await expect(page.getByText('brief.txt').first()).toBeVisible();
-  await expect(page.locator('p:visible').filter({ hasText: /Hermes mock mode is active/ }).first()).toBeVisible();
+  await expect(page.locator('p:visible').filter({ hasText: /Mock mode is active/ }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'web_search' }).first()).toBeVisible();
   await expect(page.getByText(/Approval needed/).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Artifact · text\/markdown/i }).first()).toBeVisible();
@@ -51,7 +51,7 @@ test('user can search, rename, fork, archive, and update chat settings', async (
   await expect(page).toHaveURL(/\/chat$/);
 
   await page.getByRole('button', { name: 'New chat', exact: true }).click();
-  await page.getByPlaceholder('Message Hermes…').fill('Sprint 3 searchable session');
+  await page.getByPlaceholder('Message Pan…').fill('Sprint 3 searchable session');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText(/Sprint 3 searchable session/).first()).toBeVisible();
 
@@ -69,7 +69,7 @@ test('user can search, rename, fork, archive, and update chat settings', async (
   await expect(page.getByRole('button', { name: /Renamed Sprint 3 session \(fork\)/i }).first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByLabel('Settings model switcher').selectOption('Hermes Fast');
+  await page.getByLabel('Settings model switcher').selectOption('claude-opus-4.6 · copilot');
   await page.getByLabel('Policy preset').selectOption('builder');
   await page.getByRole('button', { name: 'Save settings' }).click();
   await page.getByRole('button', { name: 'Close', exact: true }).click();

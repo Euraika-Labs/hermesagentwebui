@@ -11,7 +11,7 @@ export type UploadedAttachment = {
   contentPath: string;
 };
 
-const UPLOAD_DIR = '/opt/projects/hermesagentwebui/.data/uploads';
+const UPLOAD_DIR = '/opt/projects/pan-ui/.data/uploads';
 
 function ensureDir() {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });

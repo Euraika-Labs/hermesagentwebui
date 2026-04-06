@@ -8,10 +8,10 @@ test('user can edit memory, inspect context, and view audit log', async ({ page 
   await expect(page).toHaveURL(/\/chat$/);
 
   await page.getByRole('button', { name: 'New chat', exact: true }).click();
-  await page.getByPlaceholder('Message Hermes…').fill('Context session for memory and profiles');
+  await page.getByPlaceholder('Message Pan…').fill('Context session for memory and profiles');
   await page.getByRole('button', { name: 'Send' }).click();
   await page.getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText(/Hermes mock mode is active/).first()).toBeVisible();
+  await expect(page.getByText(/Mock mode is active/).first()).toBeVisible();
 
   await page.getByRole('link', { name: 'Memory' }).click();
   await expect(page).toHaveURL(/\/memory$/);

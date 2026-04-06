@@ -12,13 +12,13 @@ describe('memory and profile stores', () => {
 
   it('supports session search and context inspector', () => {
     const session = createSession();
-    updateSessionSettings(session.id, { model: 'Hermes Fast', policyPreset: 'builder' });
+    updateSessionSettings(session.id, { model: 'claude-opus-4.6', policyPreset: 'builder' });
     const results = sessionSearch('new chat');
     expect(Array.isArray(results)).toBe(true);
 
     const context = getContextInspector('profile-1', session.id);
     expect(context.activeSessionId).toBe(session.id);
-    expect(context.model).toBe('Hermes Fast');
+    expect(context.model).toBe('claude-opus-4.6');
   });
 
   it('creates, activates, and updates profile policy', () => {

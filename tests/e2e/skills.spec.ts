@@ -8,7 +8,7 @@ test('user can inspect a skill, edit a local skill, and load it into the current
   await expect(page).toHaveURL(/\/chat$/);
 
   await page.getByRole('button', { name: 'New chat', exact: true }).click();
-  await page.getByPlaceholder('Message Hermes…').fill('Create an active session for skills');
+  await page.getByPlaceholder('Message Pan…').fill('Create an active session for skills');
   await page.getByRole('button', { name: 'Send' }).click();
   const approveButton = page.getByRole('button', { name: 'Approve' });
   if (await approveButton.isVisible({ timeout: 3000 }).catch(() => false)) {
