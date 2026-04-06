@@ -50,7 +50,7 @@ jobs:
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           echo "Publishing version $VERSION"
 
-      # Upload the built artifact for the publish jobs
+      # Upload everything npm publish needs
       - uses: actions/upload-artifact@v4
         with:
           name: build
@@ -58,6 +58,7 @@ jobs:
             .next/standalone/
             .next/static/
             bin/
+            public/
             package.json
             README.md
             LICENSE
@@ -66,6 +67,9 @@ jobs:
   publish-npm:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -76,7 +80,8 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - run: npm publish --access public --provenance
+      # Skip prepublishOnly — already built in the build job
+      - run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -97,6 +102,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@euraika-labs'
 
-      - run: npm publish --access public
+      # Skip prepublishOnly — already built in the build job
+      - run: npm publish --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
