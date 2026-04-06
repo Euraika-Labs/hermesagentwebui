@@ -4,7 +4,7 @@ import tsPlugin from '@typescript-eslint/eslint-plugin';
 
 export default [
   {
-    ignores: ['node_modules/**', '.next/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'postcss.config.js', 'scripts/**'],
+    ignores: ['node_modules/**', '.next/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'postcss.config.js', 'scripts/**', 'bin/**'],
   },
   js.configs.recommended,
   {
