@@ -40,6 +40,8 @@ export async function getAuthSession(): Promise<AuthSession | null> {
 export const authCookieOptions = {
   httpOnly: true,
   sameSite: 'lax' as const,
-  secure: process.env.NODE_ENV === 'production',
+  // Pan is a local-first tool — always served over HTTP on localhost.
+  // Setting secure:true would prevent the auth cookie from being stored.
+  secure: false,
   path: '/',
 };
