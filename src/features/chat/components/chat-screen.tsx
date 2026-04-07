@@ -120,6 +120,16 @@ export function ChatScreen() {
         ? 'Runtime is detected but the API is unreachable, so sending is paused until connectivity returns.'
         : 'Runtime was not detected. The UI can still show saved local state and explicit fallback labels.';
 
+  const handleOpenSession = (sessionId: string) => {
+    setComposerError(null);
+    setSettingsError(null);
+    resetRunState();
+    setOptimisticMessages([]);
+    setStreamingMessage('');
+    setSelectedSessionId(sessionId);
+    setActiveSessionId(sessionId);
+  };
+
   const handleNewChat = async () => {
     setComposerError(null);
     setSettingsError(null);
@@ -218,15 +228,16 @@ export function ChatScreen() {
   return (
     <>
       <div className="grid h-full gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <SessionSidebar sessions={sessionsQuery.data ?? []} selectedSessionId={selectedSessionId} search={search} isLoading={sessionsQuery.isLoading} onSearchChange={setSearch} onNewChat={() => void handleNewChat()} onSelectSession={(sessionId) => {
-          setComposerError(null);
-          setSettingsError(null);
-          resetRunState();
-          setSelectedSessionId(sessionId);
-          setActiveSessionId(sessionId);
-          setOptimisticMessages([]);
-          setStreamingMessage('');
-        }} />
+        <SessionSidebar
+          sessions={sessionsQuery.data ?? []}
+          selectedSessionId={selectedSessionId}
+          search={search}
+          isLoading={sessionsQuery.isLoading}
+          onSearchChange={setSearch}
+          onNewChat={() => void handleNewChat()}
+          onSelectSession={handleOpenSession}
+          onResumeSession={handleOpenSession}
+        />
         <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-[var(--shadow-elevated)]">
           {mockMode ? (
             <div className="border-b border-warning/30 bg-warning/10 px-5 py-3 text-sm text-foreground">

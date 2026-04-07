@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { getHermesHome } from '@/server/hermes/paths';
+import { getConfiguredHermesHome, getHermesHome } from '@/server/hermes/paths';
 
 export type HubSkill = {
   id: string;
@@ -26,7 +26,7 @@ export type HubSkill = {
   };
 };
 
-const HUB_CACHE_DIR = () => path.join(getHermesHome(), 'skills', '.hub', 'index-cache');
+const HUB_CACHE_DIR = () => path.join(getConfiguredHermesHome(), 'skills', '.hub', 'index-cache');
 
 function readCacheFile<T>(filename: string): T | null {
   const filePath = path.join(HUB_CACHE_DIR(), filename);
@@ -85,7 +85,10 @@ export function loadFeaturedSkills(): HubSkill[] {
 }
 
 /**
- * Load ALL cached search results from skills.sh.
+ * Load ALL cached browse/search results from the hub index cache.
+ * Reads any JSON file that contains an array of RawHubEntry objects,
+ * including skills_sh_search_*, repo indexes (garrytan, anthropics, etc.),
+ * and other cache files produced by `hermes skills browse`.
  */
 export function loadCachedSearchResults(): HubSkill[] {
   const cacheDir = HUB_CACHE_DIR();
@@ -94,10 +97,15 @@ export function loadCachedSearchResults(): HubSkill[] {
   const results: HubSkill[] = [];
 
   for (const file of fs.readdirSync(cacheDir)) {
-    if (!file.startsWith('skills_sh_search_') || !file.endsWith('.json')) continue;
+    if (!file.endsWith('.json')) continue;
+    // Skip featured (handled separately) and detail files
+    if (file === 'skills_sh_featured.json') continue;
+    if (file.startsWith('skills_sh_detail_')) continue;
     const entries = readCacheFile<RawHubEntry[]>(file);
-    if (!entries) continue;
+    if (!entries || !Array.isArray(entries)) continue;
     for (const entry of entries) {
+      // Validate it looks like a RawHubEntry (has identifier field)
+      if (!entry?.identifier || !entry?.name) continue;
       if (seen.has(entry.identifier)) continue;
       seen.add(entry.identifier);
       results.push(mapEntry(entry));

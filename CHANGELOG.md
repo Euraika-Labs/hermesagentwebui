@@ -4,6 +4,21 @@ All notable changes to Pan by Euraika are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-04-07
+
+### Added
+- **Session source badges** — sessions now display their origin (CLI, WebUI, Discord, Telegram, WhatsApp, Slack, etc.) with color-coded badges in the sidebar
+- **Source filter chips** — filter the session sidebar by source when multiple sources are present (auto-hidden for single-source lists)
+- **Resume button** for external sessions — one-click to resume CLI, API, and messaging sessions from the WebUI
+- `SessionSource` type union covering 13 platforms (webui, cli, api, discord, telegram, whatsapp, signal, slack, matrix, mattermost, sms, email, unknown)
+- `X-Hermes-Session-Id` header forwarded to Hermes gateway for session continuity
+
+### Fixed
+- **Skills Discover tab showing "0 discoverable skills"** — hub cache path now uses `getConfiguredHermesHome()` (profile-aware) instead of `getHermesHome()` (root `~/.hermes`), matching where the CLI writes its cache
+- **Hub cache reader** expanded to read ALL `.json` index files (repo indexes, browse results), not just `skills_sh_search_*` files, with `Array.isArray()` guard for non-array files
+- **Hydration mismatch** — Resume button changed from nested `<button>` to `<span role="button">` with proper keyboard handlers (Enter/Space) to fix HTML validity warning
+- Session open handler extracted and streamlined to properly reset all composer state
+
 ## [0.2.4] — 2026-04-06
 
 ### Added

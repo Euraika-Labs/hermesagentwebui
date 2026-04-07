@@ -2,6 +2,21 @@ import type { Message } from '@/lib/types/message';
 import type { ChatSource } from '@/lib/types/source';
 import type { GovernanceStatus, ProvenanceLabel, RiskLevel } from '@/lib/types/runtime-status';
 
+export type SessionSource =
+  | 'webui'
+  | 'whatsapp'
+  | 'discord'
+  | 'telegram'
+  | 'signal'
+  | 'slack'
+  | 'matrix'
+  | 'mattermost'
+  | 'sms'
+  | 'email'
+  | 'cli'
+  | 'api'
+  | 'unknown';
+
 export type ChatSessionSummary = {
   id: string;
   title: string;
@@ -11,6 +26,7 @@ export type ChatSessionSummary = {
   pinned?: boolean;
   archived?: boolean;
   parentSessionId?: string;
+  source?: SessionSource;
 };
 
 export type ChatSessionSettings = {

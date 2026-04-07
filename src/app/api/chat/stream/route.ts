@@ -429,6 +429,9 @@ export async function POST(request: Request) {
 
     const hermesResponse = await hermesFetch('/v1/chat/completions', {
       method: 'POST',
+      headers: {
+        'X-Hermes-Session-Id': sessionId,
+      },
       body: JSON.stringify({
         model: session.settings.model,
         messages,

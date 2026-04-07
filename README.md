@@ -78,6 +78,7 @@ Your configuration in `~/.pan-ui/` is preserved across updates.
 | Feature | Description |
 |---------|-------------|
 | **Chat** | SSE streaming connected to a live Hermes runtime, with tool timelines, approval cards, and artifact rendering |
+| **Sessions** | Unified session sidebar with source badges (CLI, Discord, Telegram, WhatsApp, …), source filtering, and cross-platform session resumption |
 | **Skills** | Browse installed skills, discover and install 268+ more from [skills.sh](https://skills.sh) |
 | **Extensions** | View MCP servers, their tools, health status, and diagnostics |
 | **Memory** | Inspect and edit global and profile-scoped agent memory |

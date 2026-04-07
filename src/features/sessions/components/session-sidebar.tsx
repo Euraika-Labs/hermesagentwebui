@@ -1,9 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock3, GitBranch, Pin, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Clock3, GitBranch, Pin, Play, Plus } from 'lucide-react';
 import { SessionSearch } from '@/features/sessions/components/session-search';
-import type { ChatSessionSummary } from '@/lib/types/chat';
+import {
+  SESSION_SOURCES,
+  SessionSourceBadge,
+  getSourceMeta,
+} from '@/features/sessions/components/session-source-badge';
+import type { ChatSessionSummary, SessionSource } from '@/lib/types/chat';
 import { cn } from '@/lib/utils';
 
 type SessionSidebarProps = {
@@ -14,7 +19,10 @@ type SessionSidebarProps = {
   onSearchChange: (value: string) => void;
   onNewChat: () => void;
   onSelectSession: (sessionId: string) => void;
+  onResumeSession?: (sessionId: string) => void;
 };
+
+type SourceFilter = SessionSource | 'all';
 
 function previewText(preview: string | null | undefined) {
   if (!preview) return 'No messages yet.';
@@ -30,13 +38,48 @@ function formatUpdatedAt(updatedAt: string) {
   });
 }
 
-export function SessionSidebar({ sessions, selectedSessionId, search, isLoading, onSearchChange, onNewChat, onSelectSession }: SessionSidebarProps) {
+function sessionSource(session: ChatSessionSummary): SessionSource {
+  return session.source ?? 'unknown';
+}
+
+/** A session is "external" when it did not originate in this WebUI. */
+function isExternalSession(session: ChatSessionSummary): boolean {
+  const src = sessionSource(session);
+  return src !== 'webui' && src !== 'unknown';
+}
+
+export function SessionSidebar({
+  sessions,
+  selectedSessionId,
+  search,
+  isLoading,
+  onSearchChange,
+  onNewChat,
+  onSelectSession,
+  onResumeSession,
+}: SessionSidebarProps) {
   const PAGE_SIZE = 25;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const visibleSessions = search.trim() ? sessions.filter((session) => !session.parentSessionId) : sessions;
-  const pinnedSessions = visibleSessions.filter((session) => session.pinned && !session.archived);
-  const recentSessions = visibleSessions.filter((session) => !session.pinned && !session.archived);
-  const archivedSessions = visibleSessions.filter((session) => session.archived);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+
+  // Sources actually present in the current sessions list, ordered canonically.
+  const availableSources = useMemo(() => {
+    const present = new Set<SessionSource>();
+    for (const s of sessions) present.add(sessionSource(s));
+    return SESSION_SOURCES.filter((src) => present.has(src));
+  }, [sessions]);
+
+  const showFilter = availableSources.length > 1;
+
+  const filteredSessions = useMemo(() => {
+    const base = search.trim() ? sessions.filter((s) => !s.parentSessionId) : sessions;
+    if (sourceFilter === 'all') return base;
+    return base.filter((s) => sessionSource(s) === sourceFilter);
+  }, [sessions, search, sourceFilter]);
+
+  const pinnedSessions = filteredSessions.filter((s) => s.pinned && !s.archived);
+  const recentSessions = filteredSessions.filter((s) => !s.pinned && !s.archived);
+  const archivedSessions = filteredSessions.filter((s) => s.archived);
 
   const ARCHIVED_LIMIT = 5;
   const [showAllArchived, setShowAllArchived] = useState(false);
@@ -67,7 +110,7 @@ export function SessionSidebar({ sessions, selectedSessionId, search, isLoading,
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-2xl border border-border/70 bg-background/60 px-2 py-2.5">
             <p className="text-2xs uppercase tracking-label text-muted-foreground">All</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{visibleSessions.length}</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{filteredSessions.length}</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-background/60 px-2 py-2.5">
             <p className="text-2xs uppercase tracking-label text-muted-foreground">Pinned</p>
@@ -80,10 +123,64 @@ export function SessionSidebar({ sessions, selectedSessionId, search, isLoading,
         </div>
       </div>
       <SessionSearch value={search} onChange={onSearchChange} />
+      {showFilter ? (
+        <div className="border-b border-border/70 px-3 pb-3">
+          <div className="mb-1.5 flex items-center justify-between px-1 text-2xs font-semibold uppercase tracking-label text-muted-foreground">
+            <span>Source</span>
+            {sourceFilter !== 'all' ? (
+              <button
+                type="button"
+                onClick={() => setSourceFilter('all')}
+                className="text-2xs font-medium text-primary hover:underline"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSourceFilter('all')}
+              className={cn(
+                'inline-flex items-center rounded-full border px-2.5 py-0.5 text-3xs uppercase tracking-label transition',
+                sourceFilter === 'all'
+                  ? 'border-primary/60 bg-primary/15 text-primary'
+                  : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/60',
+              )}
+            >
+              All
+            </button>
+            {availableSources.map((src) => {
+              const meta = getSourceMeta(src);
+              const Icon = meta.icon;
+              const active = sourceFilter === src;
+              return (
+                <button
+                  key={src}
+                  type="button"
+                  onClick={() => setSourceFilter(src)}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-3xs uppercase tracking-label transition',
+                    active
+                      ? meta.classes.replace('/10', '/20').replace('/40', '/60')
+                      : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/60',
+                  )}
+                  title={meta.label}
+                >
+                  <Icon className="h-3 w-3" aria-hidden="true" />
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       <div className="flex-1 space-y-4 overflow-y-auto p-3">
         {isLoading ? <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">Loading sessions…</div> : null}
-        {!isLoading && visibleSessions.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">No sessions match your search.</div>
+        {!isLoading && filteredSessions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
+            {sourceFilter === 'all' ? 'No sessions match your search.' : `No ${getSourceMeta(sourceFilter).label} sessions.`}
+          </div>
         ) : null}
         {groups.map((group) => (
           <div key={group.label} className="space-y-2">
@@ -91,48 +188,75 @@ export function SessionSidebar({ sessions, selectedSessionId, search, isLoading,
               <span>{group.label}</span>
               <span>{group.items.length}</span>
             </div>
-            {group.items.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => onSelectSession(session.id)}
-                aria-label={/\(fork\)/i.test(session.title) && selectedSessionId !== session.id ? session.title : `Open session ${session.id}`}
-                className={cn(
-                  'w-full rounded-lg border px-4 py-3 text-left transition',
-                  selectedSessionId === session.id
-                    ? 'border-primary/20 bg-primary/8'
-                    : 'border-border/70 bg-background/80 hover:border-border hover:bg-card',
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p aria-hidden="true" className="truncate text-sm font-semibold text-foreground">{session.title}</p>
-                    <p aria-hidden="true" className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{previewText(session.preview)}</p>
+            {group.items.map((session) => {
+              const external = isExternalSession(session);
+              const canResume = external && Boolean(onResumeSession);
+              return (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => onSelectSession(session.id)}
+                  aria-label={/\(fork\)/i.test(session.title) && selectedSessionId !== session.id ? session.title : `Open session ${session.id}`}
+                  className={cn(
+                    'w-full rounded-lg border px-4 py-3 text-left transition',
+                    selectedSessionId === session.id
+                      ? 'border-primary/20 bg-primary/8'
+                      : 'border-border/70 bg-background/80 hover:border-border hover:bg-card',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p aria-hidden="true" className="truncate text-sm font-semibold text-foreground">{session.title}</p>
+                      <p aria-hidden="true" className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{previewText(session.preview)}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <SessionSourceBadge source={sessionSource(session)} />
+                      {session.pinned ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-3xs uppercase tracking-label text-muted-foreground">
+                          <Pin className="h-3 w-3" />
+                          Pinned
+                        </span>
+                      ) : null}
+                      {session.parentSessionId ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-3xs uppercase tracking-label text-muted-foreground">
+                          <GitBranch className="h-3 w-3" />
+                          Fork
+                        </span>
+                      ) : null}
+                      {canResume ? (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onResumeSession?.(session.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onResumeSession?.(session.id);
+                            }
+                          }}
+                          aria-label={`Resume ${getSourceMeta(sessionSource(session)).label} session`}
+                          className="inline-flex items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-2 py-0.5 text-3xs uppercase tracking-label text-primary transition hover:bg-primary/20 cursor-pointer"
+                        >
+                          <Play className="h-3 w-3" />
+                          Resume
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    {session.pinned ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-3xs uppercase tracking-label text-muted-foreground">
-                        <Pin className="h-3 w-3" />
-                        Pinned
-                      </span>
-                    ) : null}
-                    {session.parentSessionId ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-3xs uppercase tracking-label text-muted-foreground">
-                        <GitBranch className="h-3 w-3" />
-                        Fork
-                      </span>
-                    ) : null}
+                  <div className="mt-3 flex items-center justify-between gap-2 text-2xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock3 className="h-3.5 w-3.5" />
+                      {formatUpdatedAt(session.updatedAt)}
+                    </span>
+                    {session.workspaceLabel ? <span>{session.workspaceLabel}</span> : null}
                   </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-2 text-2xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    {formatUpdatedAt(session.updatedAt)}
-                  </span>
-                  {session.workspaceLabel ? <span>{session.workspaceLabel}</span> : null}
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         ))}
         {hasMore ? (

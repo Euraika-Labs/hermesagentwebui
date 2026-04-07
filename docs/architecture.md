@@ -45,6 +45,8 @@ src/
 │   ├── settings/         # Settings and operations pages
 │   └── login/            # Login page
 ├── features/             # UI feature modules (components + hooks per feature)
+│   ├── chat/             # Chat screen, composer, message rendering
+│   └── sessions/         # Session sidebar, source badges, source filtering
 ├── server/               # Server-side Hermes bridge (filesystem reads, API calls)
 ├── components/           # Shared layout and UI components
 ├── lib/                  # Types, schemas, Zustand stores, utilities
@@ -74,6 +76,27 @@ All routes live under `src/app/api/` and use Next.js Route Handlers.
 3. Forwards to Hermes API's OpenAI-compatible `/v1/chat/completions` with `stream: true`
 4. SSE events flow back through Pan to the browser
 5. Frontend renders assistant text, tool timelines, approval cards, and artifacts in real time
+
+## Session sources
+
+Hermes sessions can originate from many platforms. Pan reads the `source` column from `state.db` and displays it as a color-coded badge in the sidebar.
+
+| Source | Badge color | Description |
+|--------|-------------|-------------|
+| `webui` | Muted | Created in Pan itself |
+| `cli` | Slate | Hermes CLI terminal session |
+| `api` | Violet | Direct API call |
+| `discord` | Indigo | Discord bot |
+| `telegram` | Sky | Telegram bot |
+| `whatsapp` | Emerald | WhatsApp gateway |
+| `slack` | Fuchsia | Slack integration |
+| `signal` | Blue | Signal gateway |
+| `matrix` | Teal | Matrix bridge |
+| `sms` | Amber | SMS gateway |
+| `email` | Rose | Email gateway |
+| `unknown` | Muted | Source not recorded |
+
+The sidebar includes filter chips that appear when sessions from multiple sources are present. External sessions (anything except `webui`) show a **Resume** button.
 
 ## Tech stack
 
