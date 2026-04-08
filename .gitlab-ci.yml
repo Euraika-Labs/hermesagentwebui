@@ -1,0 +1,77 @@
+# Pan by Euraika — GitLab CI/CD
+# Mirror of https://github.com/Euraika-Labs/pan-ui
+
+stages:
+  - test
+  - build
+  - security
+
+variables:
+  NODE_VERSION: "20"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+# Cache node_modules across jobs
+.node-cache: &node-cache
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm
+      - node_modules/
+
+# ─── Test stage ───────────────────────────────────────────
+
+lint:
+  stage: test
+  image: node:${NODE_VERSION}-slim
+  <<: *node-cache
+  script:
+    - npm ci --prefer-offline
+    - npm run lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test:unit:
+  stage: test
+  image: node:${NODE_VERSION}-slim
+  <<: *node-cache
+  script:
+    - npm ci --prefer-offline
+    - npm run test
+  artifacts:
+    when: always
+    reports:
+      junit: junit-report.xml
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ─── Build stage ──────────────────────────────────────────
+
+build:
+  stage: build
+  image: node:${NODE_VERSION}-slim
+  <<: *node-cache
+  script:
+    - npm ci --prefer-offline
+    - npm run build
+  artifacts:
+    paths:
+      - .next/standalone/
+    expire_in: 1 day
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ─── Security stage (GitLab SAST) ────────────────────────
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+
+sast:
+  stage: security
+  variables:
+    SAST_EXCLUDED_PATHS: "node_modules, .next, tests/docker"

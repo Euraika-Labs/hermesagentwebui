@@ -1,0 +1,34 @@
+# Mirrors pushes to main + tags to GitLab (git.euraika.net/euraika/pan-ui)
+# Requires GITLAB_MIRROR_TOKEN secret (GitLab PAT with write_repository scope)
+
+name: GitLab Mirror
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history for mirror
+
+      - name: Push to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_MIRROR_TOKEN }}
+        run: |
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@git.euraika.net/euraika/pan-ui.git"
+
+          # Push branch
+          if [[ "$GITHUB_REF" == refs/heads/* ]]; then
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            git push gitlab "HEAD:${BRANCH}" --force
+          fi
+
+          # Push tags
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            git push gitlab "${GITHUB_REF}" --force
+          fi
