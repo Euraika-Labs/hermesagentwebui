@@ -4,7 +4,7 @@ import { execCli } from '@/server/core/cli';
 import { execPythonJson } from '@/server/core/python-exec';
 import { hermesConfig } from '@/server/hermes/config';
 import { describeHermesProfileContext, detectHermesActiveProfileFromHome } from '@/server/hermes/profile-context';
-import { getConfiguredHermesHome, getHermesHome } from '@/server/hermes/paths';
+import { getEffectiveHome, getHermesHome } from '@/server/hermes/paths';
 
 type RuntimeSession = {
   id: string;
@@ -192,9 +192,11 @@ except Exception as e:
 export async function getHermesRuntimeStatus(): Promise<RuntimeStatus> {
   const mockMode = process.env.HERMES_MOCK_MODE === 'true';
   const hermesPath = detectHermesPath();
-  const configuredHermesHome = getConfiguredHermesHome();
   const hermesHome = getHermesHome();
-  if (!hermesPath || !fs.existsSync(configuredHermesHome)) {
+  const detectedActive = detectHermesActiveProfileFromHome();
+  const effectiveHome = getEffectiveHome();
+
+  if (!hermesPath || !fs.existsSync(effectiveHome)) {
     return {
       available: false,
       mockMode,
@@ -208,7 +210,7 @@ export async function getHermesRuntimeStatus(): Promise<RuntimeStatus> {
       sessionsCount: 0,
       recentSessions: [],
       binaryDetected: Boolean(hermesPath),
-      configDetected: fs.existsSync(configuredHermesHome),
+      configDetected: fs.existsSync(effectiveHome),
       profileContext: describeHermesProfileContext(null),
       remediationHints: [
         'Install the Hermes CLI and ensure `hermes` is on PATH.',
@@ -218,11 +220,11 @@ export async function getHermesRuntimeStatus(): Promise<RuntimeStatus> {
     };
   }
 
-  const configPath = path.join(configuredHermesHome, 'config.yaml');
-  const memoriesDir = path.join(configuredHermesHome, 'memories');
-  const skillsDir = path.join(configuredHermesHome, 'skills');
+  const configPath = path.join(effectiveHome, 'config.yaml');
+  const memoriesDir = path.join(effectiveHome, 'memories');
+  const skillsDir = path.join(effectiveHome, 'skills');
   const profilesDir = path.join(hermesHome, 'profiles');
-  const stateDbPath = path.join(configuredHermesHome, 'state.db');
+  const stateDbPath = path.join(effectiveHome, 'state.db');
 
   const version = (() => {
     try {
@@ -239,7 +241,6 @@ export async function getHermesRuntimeStatus(): Promise<RuntimeStatus> {
       ) as Record<string, unknown>)
     : {};
 
-  const detectedActive = detectHermesActiveProfileFromHome();
   const profiles = [detectedActive, ...((fs.existsSync(profilesDir) ? fs.readdirSync(profilesDir).filter((name) => fs.statSync(path.join(profilesDir, name)).isDirectory()) : []) as string[])].filter((value, index, array) => array.indexOf(value) === index);
 
   const recentSessions = fs.existsSync(stateDbPath)

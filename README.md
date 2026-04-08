@@ -50,7 +50,7 @@ A setup wizard runs on first launch to connect Pan to your Hermes instance. Afte
 ### Run in the background
 
 ```bash
-npx @euraika-labs/pan-ui --daemon       # Fork to background
+npx @euraika-labs/pan-ui start --daemon  # Fork to background
 npx pan-ui status                        # Check if running
 npx pan-ui logs                          # Tail log output
 npx pan-ui stop                          # Stop the daemon
@@ -142,15 +142,19 @@ Installed skills with search and category filters. Discover tab for the skills.s
 
 | Command | Description |
 |---------|-------------|
-| `npx pan-ui` | Start in foreground |
-| `npx pan-ui --daemon` | Start in background |
-| `npx pan-ui stop` | Stop daemon |
-| `npx pan-ui status` | Show running state |
-| `npx pan-ui logs` | Tail daemon logs |
-| `npx pan-ui setup` | Re-run setup wizard |
-| `npx pan-ui --port 8080` | Override port |
-| `npx pan-ui service install` | Install systemd service |
-| `npx pan-ui service remove` | Remove systemd service |
+| `pan-ui` / `pan-ui start` | Start in foreground |
+| `pan-ui start --daemon` | Start in background |
+| `pan-ui start --port 8080` | Override port |
+| `pan-ui stop` | Stop daemon |
+| `pan-ui status` | Show running state |
+| `pan-ui logs` | Tail daemon logs |
+| `pan-ui setup` | Re-run setup wizard |
+| `pan-ui update` | Check for and install updates |
+| `pan-ui sync-hermes` | Update vendored Hermes to pinned version |
+| `pan-ui version` | Show current version |
+| `pan-ui service install` | Install systemd service |
+| `pan-ui service remove` | Remove systemd service |
+| `pan-ui help` | Show CLI usage |
 
 ### Environment Variables
 
@@ -194,6 +198,7 @@ Pan runs as a standalone Next.js server that bridges your browser to the Hermes 
 ```
 
 - **Gateway** — Pan's startup hook detects whether the Hermes gateway is reachable. If not, it spawns `hermes gateway run` as a child process with health monitoring and auto-restart. The gateway uses the active Hermes profile — no hardcoded names or paths.
+- **Vendored Hermes** — Pan pins a specific Hermes Agent version via `hermes.version.json`. On first launch, if no `hermes` binary is found, the setup wizard installs it from the [Euraika-Labs/hermes-agent](https://github.com/Euraika-Labs/hermes-agent) fork. Use `pan-ui sync-hermes` to update.
 - **Chat** streams through Hermes's OpenAI-compatible SSE endpoint
 - **Skills** are read from `~/.hermes/skills/` with YAML frontmatter parsing
 - **Memory** reads/writes `USER.md` and `MEMORY.md` at global and profile scope

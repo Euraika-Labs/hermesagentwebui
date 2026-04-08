@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Pinned hermes-agent version for Pan UI compatibility",
+  "hermes": {
+    "version": "0.7.0",
+    "tag": "pan-v0.7.0",
+    "repo": "https://github.com/Euraika-Labs/hermes-agent.git",
+    "upstream": "https://github.com/NousResearch/hermes-agent.git",
+    "minVersion": "0.7.0",
+    "maxVersion": "0.8.0",
+    "pinnedAt": "2026-04-07T21:45:00Z",
+    "upstreamSha": "ca0459d109b9d23ce2b3c4c4cb6e8547a7eada3c"
+  },
+  "python": {
+    "minVersion": "3.11"
+  }
+}

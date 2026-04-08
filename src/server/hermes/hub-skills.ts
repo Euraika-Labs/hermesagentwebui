@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { getConfiguredHermesHome, getHermesHome } from '@/server/hermes/paths';
+import { getEffectiveHome, getHermesHome } from '@/server/hermes/paths';
 
 export type HubSkill = {
   id: string;
@@ -26,7 +26,7 @@ export type HubSkill = {
   };
 };
 
-const HUB_CACHE_DIR = () => path.join(getConfiguredHermesHome(), 'skills', '.hub', 'index-cache');
+const HUB_CACHE_DIR = () => path.join(getEffectiveHome(), 'skills', '.hub', 'index-cache');
 
 function readCacheFile<T>(filename: string): T | null {
   const filePath = path.join(HUB_CACHE_DIR(), filename);

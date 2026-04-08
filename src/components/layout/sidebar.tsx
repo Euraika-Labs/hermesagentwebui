@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { Bot, Brain, FolderTree, Library, MessageSquare, Settings, Workflow } from 'lucide-react';
 import { useUIStore } from '@/lib/store/ui-store';
 import { cn } from '@/lib/utils';
+import { UpdateBanner } from './update-banner';
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: MessageSquare, description: 'Active workspace runs and transcripts' },
@@ -89,6 +90,8 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <UpdateBanner />
 
       <div className="px-3">
         <div className="rounded-lg border border-border/70 bg-card/80 p-4 text-xs leading-5 text-muted-foreground shadow-[var(--shadow-card)]">

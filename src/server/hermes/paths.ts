@@ -61,6 +61,27 @@ export function getProfileConfigPath(profileId: string | null | undefined) {
   return path.join(getProfileRoot(profileId), 'config.yaml');
 }
 
+/**
+ * Return the effective home directory for the active Hermes profile.
+ *
+ * Uses the profile detection heuristic (sticky file, single-profile scan)
+ * to resolve from the base HERMES_HOME to the actual profile subdirectory.
+ * If no named profile is active, returns the configured HERMES_HOME as-is.
+ */
+export function getEffectiveHome(): string {
+  // Lazy import to avoid circular deps at module load time
+  const { detectHermesActiveProfileFromHome } = require('@/server/hermes/profile-context');
+  const hermesHome = getHermesHome();
+  const active: string = detectHermesActiveProfileFromHome();
+
+  if (active && active !== 'default') {
+    const profileDir = path.join(hermesHome, 'profiles', active);
+    if (fs.existsSync(profileDir)) return profileDir;
+  }
+
+  return getConfiguredHermesHome();
+}
+
 export function ensureDir(dirPath: string) {
   fs.mkdirSync(dirPath, { recursive: true });
 }

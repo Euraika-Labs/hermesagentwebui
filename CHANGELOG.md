@@ -4,6 +4,28 @@ All notable changes to Pan by Euraika are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-04-08
+
+### Added
+- **Vendored Hermes fork** — Pan now pins and manages its own Hermes Agent binary from `Euraika-Labs/hermes-agent`. Version requirements defined in `hermes.version.json` at the repo root.
+- **Auto-install Hermes** — if no `hermes` binary is found, Pan's setup wizard offers to clone and install the vendored fork automatically via `pip install -e .`
+- **Version compatibility checks** — startup validates installed Hermes version against `minVersion`/`maxVersion` from `hermes.version.json` and warns on mismatch
+- **`pan-ui sync-hermes`** — new CLI subcommand to update Hermes to the pinned version
+- **`pan-ui update`** — check for and install Pan updates from npm
+- **`pan-ui version`** — display current Pan version
+- **`pan-ui help`** — show full CLI usage
+- **Update banner** — in-app notification when a newer Pan version is available on npm
+- **Update check API** — `/api/runtime/update-check` endpoint for the frontend banner
+
+### Changed
+- **CLI refactored to subcommand structure** — `pan-ui start`, `pan-ui stop`, `pan-ui status`, `pan-ui logs`, `pan-ui setup`, `pan-ui service install|remove`. Old flag-style (`--daemon`) still works for backward compatibility.
+- **Profile detection hardened** — `getActiveProfileId()` now resolves the active Hermes profile dynamically without hardcoded names or `HERMES_HOME` env var. Falls back gracefully when only one profile exists.
+- **Runtime bridge** — improved error handling and profile-aware path resolution
+
+### Fixed
+- Hub skills cache reads use profile-aware paths consistently
+- Profile context no longer crashes when `~/.hermes/profiles/` contains non-directory entries
+
 ## [0.4.0] — 2026-04-07
 
 ### Added
@@ -108,6 +130,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Dependabot configuration
 - Community standards (CoC, CONTRIBUTING, SECURITY, issue templates)
 
+[0.5.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/Euraika-Labs/pan-ui/compare/v0.2.3...v0.2.4

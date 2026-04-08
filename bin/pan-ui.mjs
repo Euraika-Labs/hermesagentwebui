@@ -4,15 +4,18 @@
  * pan-ui — CLI launcher with interactive setup wizard.
  *
  * Usage:
- *   npx pan-ui                  # start foreground (runs setup on first launch)
- *   npx pan-ui --daemon         # start in background (daemonize)
- *   npx pan-ui stop             # stop background daemon
- *   npx pan-ui status           # check if daemon is running
- *   npx pan-ui logs             # tail daemon log output
- *   npx pan-ui setup            # re-run setup wizard
- *   npx pan-ui service install  # install systemd user service
- *   npx pan-ui service remove   # remove systemd user service
- *   npx pan-ui --port 8080      # custom port
+ *   pan-ui start                # start foreground (runs setup on first launch)
+ *   pan-ui start --daemon       # start in background (daemonize)
+ *   pan-ui start --port 8080    # custom port
+ *   pan-ui stop                 # stop background daemon
+ *   pan-ui status               # check if daemon is running
+ *   pan-ui logs                 # tail daemon log output
+ *   pan-ui setup                # re-run setup wizard
+ *   pan-ui update               # check for and install updates
+ *   pan-ui version              # show current version
+ *   pan-ui service install      # install systemd user service
+ *   pan-ui service remove       # remove systemd user service
+ *   pan-ui help                 # show help
  */
 
 import { createInterface } from 'node:readline';
@@ -65,6 +68,22 @@ function startBanner(port) {
 
 // ─── Detection ──────────────────────────────────────────────────────────────
 
+function loadHermesVersionConfig() {
+  try {
+    const cfgPath = join(PKG_ROOT, 'hermes.version.json');
+    return JSON.parse(readFileSync(cfgPath, 'utf-8')).hermes;
+  } catch { return null; }
+}
+
+const HERMES_VERSION_CONFIG = loadHermesVersionConfig();
+const HERMES_FORK_REPO = HERMES_VERSION_CONFIG?.repo || 'https://github.com/Euraika-Labs/hermes-agent.git';
+const HERMES_PINNED_TAG = HERMES_VERSION_CONFIG?.tag || 'main';
+const HERMES_PINNED_VERSION = HERMES_VERSION_CONFIG?.version || null;
+const HERMES_MIN_VERSION = HERMES_VERSION_CONFIG?.minVersion || '0.7.0';
+const HERMES_MAX_VERSION = HERMES_VERSION_CONFIG?.maxVersion || null;
+// Fallback to upstream install script for manual instructions
+const HERMES_INSTALL_URL = 'https://raw.githubusercontent.com/Euraika-Labs/hermes-agent/main/scripts/install.sh';
+
 function detectHermesBinary() {
   try {
     const p = execSync('command -v hermes', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -76,6 +95,44 @@ function detectHermesVersion(bin) {
   try {
     return execSync(`${bin} --version`, { encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch { return null; }
+}
+
+/**
+ * Parse semver-like version string. Extracts x.y.z from strings like "Hermes Agent v0.7.0 (2026.4.3)".
+ * Returns the version as "x.y.z" string or null.
+ */
+function parseHermesVersion(str) {
+  if (!str) return null;
+  const m = str.match(/(\d+\.\d+\.\d+)/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Check if the installed hermes version is compatible with Pan's requirements.
+ * Uses the existing compareVersions(string, string) for semver comparison.
+ * Returns { compatible, installed, required, message }.
+ */
+function checkHermesCompatibility(versionString) {
+  const installed = parseHermesVersion(versionString);
+  if (!installed) return { compatible: true, installed: null, message: null }; // can't check, assume ok
+
+  if (HERMES_MIN_VERSION && compareVersions(installed, HERMES_MIN_VERSION) < 0) {
+    return {
+      compatible: false,
+      installed,
+      required: `>=${HERMES_MIN_VERSION}`,
+      message: `Hermes ${installed} is too old. Pan requires >=${HERMES_MIN_VERSION}.`
+    };
+  }
+  if (HERMES_MAX_VERSION && compareVersions(installed, HERMES_MAX_VERSION) >= 0) {
+    return {
+      compatible: false,
+      installed,
+      required: `<${HERMES_MAX_VERSION}`,
+      message: `Hermes ${installed} is too new (untested). Pan is tested with <${HERMES_MAX_VERSION}.`
+    };
+  }
+  return { compatible: true, installed, message: null };
 }
 
 function detectHermesHome() {
@@ -108,6 +165,355 @@ function detectPython() {
   } catch { return false; }
 }
 
+// ─── Update check ───────────────────────────────────────────────────────────
+
+const PKG_NAME = '@euraika-labs/pan-ui';
+const UPDATE_CHECK_FILE = join(RUN_DIR, 'update-check.json');
+
+function getCurrentVersion() {
+  try {
+    const pkg = JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch { return '0.0.0'; }
+}
+
+/**
+ * Check npm registry for the latest version. Caches result for 6 hours.
+ * Returns { current, latest, updateAvailable, checkedAt } or null on error.
+ */
+function checkForUpdates(forceCheck = false) {
+  const current = getCurrentVersion();
+
+  // Return cached result if still fresh (6 hours)
+  if (!forceCheck && existsSync(UPDATE_CHECK_FILE)) {
+    try {
+      const cached = JSON.parse(readFileSync(UPDATE_CHECK_FILE, 'utf-8'));
+      const age = Date.now() - (cached.checkedAt || 0);
+      if (age < 6 * 60 * 60 * 1000 && cached.current === current) {
+        return cached;
+      }
+    } catch {}
+  }
+
+  try {
+    const latest = execSync(`npm view ${PKG_NAME} version 2>/dev/null`, {
+      encoding: 'utf-8',
+      timeout: 10_000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+
+    if (!latest) return null;
+
+    const result = {
+      current,
+      latest,
+      updateAvailable: latest !== current && compareVersions(latest, current) > 0,
+      checkedAt: Date.now(),
+    };
+
+    // Cache result
+    try {
+      mkdirSync(RUN_DIR, { recursive: true });
+      writeFileSync(UPDATE_CHECK_FILE, JSON.stringify(result), 'utf-8');
+    } catch {}
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/** Simple semver comparison: returns >0 if a > b, <0 if a < b, 0 if equal */
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/** Non-blocking startup update check — prints a notice if update is available */
+function showUpdateNotice() {
+  try {
+    const result = checkForUpdates(false);
+    if (result?.updateAvailable) {
+      console.log(`  ${yellow('⬆')}  Update available: ${dim(result.current)} → ${green(result.latest)}`);
+      console.log(`     ${dim('Run:')} ${cyan('pan-ui update')}`);
+      console.log('');
+    }
+  } catch {}
+}
+
+/** Perform the update via npm */
+async function performUpdate() {
+  const result = checkForUpdates(true);
+  if (!result) {
+    console.log(`  ${yellow('!')} Could not check for updates (npm registry unreachable?)`);
+    process.exit(1);
+  }
+
+  console.log('');
+  console.log(`  ${dim('Current version:')} ${cyan(result.current)}`);
+  console.log(`  ${dim('Latest version:')}  ${cyan(result.latest)}`);
+  console.log('');
+
+  if (!result.updateAvailable) {
+    console.log(`  ${green('✓')} You're already on the latest version!`);
+    process.exit(0);
+  }
+
+  console.log(`  ${cyan('⬆')}  Updating ${PKG_NAME} ${dim(result.current)} → ${green(result.latest)}...`);
+  console.log('');
+
+  try {
+    execSync(`npm install -g ${PKG_NAME}@latest`, { stdio: 'inherit', timeout: 120_000 });
+    console.log('');
+    console.log(`  ${green('✓')} Updated to ${result.latest}!`);
+
+    // Clear update cache
+    try { unlinkSync(UPDATE_CHECK_FILE); } catch {}
+
+    // Check if running as systemd service
+    if (platform() === 'linux') {
+      try {
+        const status = execSync(`systemctl --user is-active ${SERVICE_NAME} 2>/dev/null`, {
+          encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        if (status === 'active') {
+          console.log(`  ${dim('Restarting service...')}`);
+          execSync(`systemctl --user restart ${SERVICE_NAME}`, { stdio: 'ignore' });
+          console.log(`  ${green('✓')} Service restarted`);
+        }
+      } catch {}
+    }
+
+    // Check if running as daemon
+    const { running } = getDaemonStatus();
+    if (running) {
+      console.log(`  ${yellow('!')} A daemon is running. Restart it with: ${cyan('pan-ui stop && pan-ui start --daemon')}`);
+    }
+
+    console.log('');
+  } catch (err) {
+    console.log('');
+    console.log(`  ${red('✗')} Update failed: ${err.message}`);
+    console.log(`  ${dim('Try manually:')} ${cyan(`npm install -g ${PKG_NAME}@latest`)}`);
+    process.exit(1);
+  }
+}
+
+// ─── Sync Hermes ──────────────────────────────────────────────────────────
+
+/**
+ * Sync the local Hermes Agent install to Pan's pinned fork version.
+ * - If no hermes install exists: fresh clone from fork
+ * - If hermes exists: switch remote to fork, checkout pinned tag, reinstall
+ * - With --force: reinstall even if already on the correct version
+ */
+async function syncHermes(force = false) {
+  console.log('');
+  console.log(bold('  Hermes Agent Sync'));
+  console.log(dim(`  Fork:    ${HERMES_FORK_REPO}`));
+  console.log(dim(`  Tag:     ${HERMES_PINNED_TAG}`));
+  console.log(dim(`  Version: ${HERMES_PINNED_VERSION || 'unknown'}`));
+  console.log('');
+
+  const hermesHome = join(homedir(), '.hermes');
+  const installDir = join(hermesHome, 'hermes-agent');
+
+  // Check current version
+  const hermesBin = detectHermesBinary();
+  if (hermesBin && !force) {
+    const version = detectHermesVersion(hermesBin);
+    const compat = checkHermesCompatibility(version);
+    if (compat.compatible && compat.installed === HERMES_PINNED_VERSION) {
+      console.log(`  ${green('✓')} Already on the pinned version (${compat.installed})`);
+      console.log(`  ${dim('Use --force to reinstall anyway')}`);
+      return;
+    }
+    if (compat.installed) {
+      console.log(`  ${dim('Current:')} ${yellow(compat.installed)} → ${green(HERMES_PINNED_VERSION)}`);
+    }
+  }
+
+  // Step 1: ensure git repo is pointing at our fork
+  if (existsSync(join(installDir, '.git'))) {
+    console.log(`  ${cyan('→')} Switching to Euraika-Labs fork...`);
+    try {
+      const currentRemote = execSync('git remote get-url origin', {
+        cwd: installDir, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore']
+      }).trim();
+      if (currentRemote !== HERMES_FORK_REPO) {
+        execSync(`git remote set-url origin ${HERMES_FORK_REPO}`, { cwd: installDir, stdio: 'ignore' });
+        // Keep upstream as a secondary remote for reference
+        try {
+          execSync('git remote get-url upstream', { cwd: installDir, stdio: 'ignore' });
+        } catch {
+          execSync(`git remote add upstream ${HERMES_VERSION_CONFIG?.upstream || 'https://github.com/NousResearch/hermes-agent.git'}`, {
+            cwd: installDir, stdio: 'ignore'
+          });
+        }
+        console.log(`  ${green('✓')} Remote switched from ${dim(currentRemote)}`);
+      } else {
+        console.log(`  ${green('✓')} Already pointing at fork`);
+      }
+    } catch (e) {
+      console.log(`  ${yellow('!')} Could not update remote: ${e.message}`);
+    }
+
+    // Step 2: fetch and checkout the pinned tag
+    console.log(`  ${cyan('→')} Fetching ${HERMES_PINNED_TAG}...`);
+    try {
+      execSync(`git fetch origin --tags`, { cwd: installDir, stdio: 'inherit', timeout: 60_000 });
+      execSync(`git checkout ${HERMES_PINNED_TAG}`, { cwd: installDir, stdio: 'inherit', timeout: 30_000 });
+      console.log(`  ${green('✓')} Checked out ${HERMES_PINNED_TAG}`);
+    } catch (e) {
+      console.log(`  ${red('✗')} Fetch/checkout failed: ${e.message}`);
+      return;
+    }
+  } else {
+    // Fresh clone
+    console.log(`  ${cyan('→')} Cloning from fork...`);
+    mkdirSync(hermesHome, { recursive: true });
+    try {
+      execSync(
+        `git clone --branch ${HERMES_PINNED_TAG} ${HERMES_FORK_REPO} ${installDir}`,
+        { stdio: 'inherit', timeout: 120_000 }
+      );
+      console.log(`  ${green('✓')} Cloned`);
+    } catch (e) {
+      console.log(`  ${red('✗')} Clone failed: ${e.message}`);
+      return;
+    }
+  }
+
+  // Step 3: reinstall in venv
+  console.log(`  ${cyan('→')} Installing dependencies...`);
+  const localInstallScript = join(installDir, 'scripts', 'install.sh');
+  try {
+    if (existsSync(localInstallScript)) {
+      execSync(`bash ${localInstallScript} --skip-setup`, {
+        stdio: 'inherit', timeout: 300_000,
+        env: { ...process.env, HERMES_INSTALL_DIR: installDir }
+      });
+    } else {
+      const venvDir = join(installDir, 'venv');
+      if (!existsSync(venvDir)) {
+        execSync(`python3 -m venv ${venvDir}`, { stdio: 'inherit', timeout: 60_000 });
+      }
+      execSync(`${join(venvDir, 'bin', 'pip')} install -e ${installDir}`, {
+        stdio: 'inherit', timeout: 300_000
+      });
+    }
+  } catch (e) {
+    console.log(`  ${red('✗')} Install failed: ${e.message}`);
+    return;
+  }
+
+  // Verify
+  const newBin = detectHermesBinary();
+  const newVersion = newBin ? detectHermesVersion(newBin) : null;
+  console.log('');
+  if (newBin) {
+    console.log(`  ${green('✓')} Hermes synced: ${cyan(newVersion || 'unknown version')}`);
+  } else {
+    console.log(`  ${yellow('!')} Install completed but hermes binary not found in PATH`);
+    console.log(`  ${dim('You may need to restart your shell or source ~/.bashrc')}`);
+  }
+  console.log('');
+}
+
+/**
+ * Install Hermes Agent from the Euraika-Labs fork at the pinned version tag.
+ * Uses git clone + pip install for reproducible, version-controlled installs.
+ * Falls back to the upstream install script if git is unavailable.
+ * Returns the hermes binary path on success, null on failure.
+ */
+async function installHermesAgent() {
+  console.log('');
+  console.log(`  ${cyan('⬇')}  Installing Hermes Agent ${HERMES_PINNED_VERSION ? `v${HERMES_PINNED_VERSION}` : ''}...`);
+  console.log(`  ${dim(`Source: ${HERMES_FORK_REPO} @ ${HERMES_PINNED_TAG}`)}`);
+  console.log('');
+
+  const hermesHome = join(homedir(), '.hermes');
+  const installDir = join(hermesHome, 'hermes-agent');
+
+  try {
+    // Prefer our fork-based install for version control
+    mkdirSync(hermesHome, { recursive: true });
+
+    if (existsSync(installDir)) {
+      // Existing install — update to pinned tag
+      console.log(`  ${dim('Existing install found, updating to pinned version...')}`);
+      execSync(`cd ${installDir} && git fetch origin && git checkout ${HERMES_PINNED_TAG}`, {
+        stdio: 'inherit', timeout: 120_000
+      });
+    } else {
+      // Fresh clone from our fork at the pinned tag
+      execSync(
+        `git clone --depth 1 --branch ${HERMES_PINNED_TAG} ${HERMES_FORK_REPO} ${installDir}`,
+        { stdio: 'inherit', timeout: 120_000 }
+      );
+    }
+
+    // Set the remote to our fork (in case it was previously pointing at NousResearch)
+    try {
+      execSync(`cd ${installDir} && git remote set-url origin ${HERMES_FORK_REPO}`, { stdio: 'ignore' });
+    } catch {}
+
+    // Install in venv using the upstream install script from the cloned repo
+    const localInstallScript = join(installDir, 'scripts', 'install.sh');
+    if (existsSync(localInstallScript)) {
+      execSync(`bash ${localInstallScript} --skip-setup`, {
+        stdio: 'inherit', timeout: 300_000,
+        env: { ...process.env, HERMES_INSTALL_DIR: installDir }
+      });
+    } else {
+      // Fallback: direct pip install
+      const venvDir = join(installDir, 'venv');
+      if (!existsSync(venvDir)) {
+        execSync(`python3 -m venv ${venvDir}`, { stdio: 'inherit', timeout: 60_000 });
+      }
+      execSync(`${join(venvDir, 'bin', 'pip')} install -e ${installDir}`, {
+        stdio: 'inherit', timeout: 300_000
+      });
+    }
+  } catch (err) {
+    console.log('');
+    console.log(`  ${red('✗')} Hermes installation failed: ${err.message}`);
+    console.log(`  ${dim('Try installing manually:')}`);
+    console.log(`    ${cyan(`curl -fsSL ${HERMES_INSTALL_URL} | bash`)}`);
+    return null;
+  }
+
+  // Find the binary after install
+  const possiblePaths = [
+    join(installDir, 'venv', 'bin', 'hermes'),
+    join(installDir, '.venv', 'bin', 'hermes'),
+    join(homedir(), '.local', 'bin', 'hermes'),
+  ];
+
+  // Also try sourcing the updated shell profile
+  try {
+    const shell = process.env.SHELL || '/bin/bash';
+    const rcFile = shell.endsWith('zsh') ? '~/.zshrc' : '~/.bashrc';
+    const found = execSync(
+      `source ${rcFile} 2>/dev/null; command -v hermes`,
+      { encoding: 'utf-8', shell: '/bin/bash', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }
+    ).trim();
+    if (found) return found;
+  } catch {}
+
+  for (const p of possiblePaths) {
+    if (existsSync(p)) return p;
+  }
+
+  // Last resort: maybe it's in PATH now after install
+  return detectHermesBinary();
+}
+
 // ─── .env parser/writer ─────────────────────────────────────────────────────
 
 function loadEnv(envPath) {
@@ -133,7 +539,7 @@ function loadEnv(envPath) {
 function writeEnv(envPath, env) {
   const header = [
     '# Pan UI configuration',
-    '# Generated by: npx pan-ui setup',
+    '# Generated by: pan-ui setup',
     `# Updated: ${new Date().toISOString()}`,
     '',
   ];
@@ -257,17 +663,52 @@ async function setup(forceWizard = false) {
   env.HERMES_MOCK_MODE = (mockAnswer === 'true' || mockAnswer === 'yes') ? 'true' : (mockAnswer || currentMock);
   console.log('');
 
-  // ── Step 6: Diagnostics ─────────────────────────────────────────────────
+  // ── Step 6: Diagnostics & Auto-Install ─────────────────────────────────
 
   console.log(bold('  6/6  Environment Check'));
 
-  const hermesBin = detectHermesBinary();
+  let hermesBin = detectHermesBinary();
   if (hermesBin) {
     const version = detectHermesVersion(hermesBin);
     console.log(`  ${green('✓')} Hermes binary: ${cyan(hermesBin)}${version ? ` (${version})` : ''}`);
+
+    // Check version compatibility with Pan's pinned range
+    const compat = checkHermesCompatibility(version);
+    if (!compat.compatible) {
+      console.log(`  ${yellow('⚠')} ${compat.message}`);
+      console.log(`  ${dim(`Pan is tested with Hermes ${HERMES_PINNED_VERSION} (${HERMES_FORK_REPO} @ ${HERMES_PINNED_TAG})`)}`);
+      console.log(`  ${dim('Run:')} ${cyan('pan-ui sync-hermes')} ${dim('to install the compatible version')}`);
+    }
   } else {
-    console.log(`  ${yellow('!')} Hermes binary not found in PATH`);
-    console.log(`    ${dim('Install: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash')}`);
+    console.log(`  ${yellow('!')} Hermes Agent not found in PATH`);
+    console.log(`  ${dim('Pan needs Hermes Agent to function — sessions, skills, memory, and the gateway all require it.')}`);
+    console.log('');
+    const doInstall = (await ask(`  ${bold('Install Hermes Agent now? [Y/n]:')} `)).trim().toLowerCase();
+
+    if (doInstall === '' || doInstall === 'y' || doInstall === 'yes') {
+      hermesBin = await installHermesAgent();
+      if (hermesBin) {
+        const version = detectHermesVersion(hermesBin);
+        console.log('');
+        console.log(`  ${green('✓')} Hermes installed: ${cyan(hermesBin)}${version ? ` (${version})` : ''}`);
+
+        // Update HERMES_HOME if it was just the default and install created it
+        const newHome = detectHermesHome();
+        if (newHome && newHome !== env.HERMES_HOME) {
+          env.HERMES_HOME = newHome;
+          console.log(`  ${green('✓')} HERMES_HOME updated to ${cyan(newHome)}`);
+        }
+      } else {
+        console.log('');
+        console.log(`  ${yellow('⚠')} Installation did not succeed. Pan will start but with limited functionality.`);
+        console.log(`  ${dim('Install manually later:')}`);
+        console.log(`    ${cyan(`curl -fsSL ${HERMES_INSTALL_URL} | bash`)}`);
+      }
+    } else {
+      console.log(`  ${dim('Skipped. Pan will start in limited mode without Hermes.')}`);
+      console.log(`  ${dim('Install later:')}`);
+      console.log(`    ${cyan(`curl -fsSL ${HERMES_INSTALL_URL} | bash`)}`);
+    }
   }
 
   if (detectPython()) {
@@ -282,7 +723,20 @@ async function setup(forceWizard = false) {
     if (existsSync(configPath)) {
       console.log(`  ${green('✓')} config.yaml found`);
     } else {
-      console.log(`  ${yellow('!')} config.yaml not found — run ${cyan('hermes setup')} first`);
+      // If hermes is available, offer to run setup
+      if (hermesBin) {
+        console.log(`  ${yellow('!')} config.yaml not found — running ${cyan('hermes setup')} to initialize...`);
+        try {
+          execSync(`${hermesBin} setup --non-interactive 2>/dev/null || true`, {
+            stdio: 'inherit',
+            timeout: 30_000,
+          });
+        } catch {
+          console.log(`  ${yellow('!')} config.yaml not found — run ${cyan('hermes setup')} to configure API keys`);
+        }
+      } else {
+        console.log(`  ${yellow('!')} config.yaml not found — run ${cyan('hermes setup')} after installing Hermes`);
+      }
     }
   }
 
@@ -296,7 +750,7 @@ async function setup(forceWizard = false) {
 
   writeEnv(ENV_PATH, env);
   console.log(`  ${green('✓')} Configuration saved to ${cyan(ENV_PATH)}`);
-  console.log(`  ${dim('Re-run with:')} ${cyan('npx pan-ui setup')}`);
+  console.log(`  ${dim('Re-run with:')} ${cyan('pan-ui setup')}`);
   console.log('');
 
   return env;
@@ -440,7 +894,7 @@ function startDaemon(env, portOverride) {
   const { running, pid: existingPid } = getDaemonStatus();
   if (running) {
     console.log(`  ${yellow('!')} Pan UI is already running (PID ${existingPid})`);
-    console.log(`  ${dim('Stop with:')} ${cyan('npx pan-ui stop')}`);
+    console.log(`  ${dim('Stop with:')} ${cyan('pan-ui stop')}`);
     process.exit(0);
   }
 
@@ -494,9 +948,9 @@ function startDaemon(env, portOverride) {
   console.log(`  ${dim('Local:')}   ${cyan(`http://localhost:${port}`)}`);
   console.log(`  ${dim('Log:')}     ${cyan(LOG_FILE)}`);
   console.log('');
-  console.log(`  ${dim('Stop with:')}    ${cyan('npx pan-ui stop')}`);
-  console.log(`  ${dim('View logs:')}    ${cyan('npx pan-ui logs')}`);
-  console.log(`  ${dim('Check status:')} ${cyan('npx pan-ui status')}`);
+  console.log(`  ${dim('Stop with:')}    ${cyan('pan-ui stop')}`);
+  console.log(`  ${dim('View logs:')}    ${cyan('pan-ui logs')}`);
+  console.log(`  ${dim('Check status:')} ${cyan('pan-ui status')}`);
   console.log('');
 }
 
@@ -532,7 +986,7 @@ function showStatus() {
   } else {
     console.log('');
     console.log(`  ${red('●')} Pan UI is ${red('stopped')}`);
-    console.log(`  ${dim('Start with:')} ${cyan('npx pan-ui --daemon')}`);
+    console.log(`  ${dim('Start with:')} ${cyan('pan-ui start --daemon')}`);
     console.log('');
   }
 }
@@ -602,7 +1056,7 @@ WantedBy=default.target
 async function serviceInstall() {
   if (platform() !== 'linux') {
     console.log(`  ${red('✗')} Systemd services are only supported on Linux.`);
-    console.log(`  ${dim('Use')} ${cyan('npx pan-ui --daemon')} ${dim('instead.')}`);
+    console.log(`  ${dim('Use')} ${cyan('pan-ui start --daemon')} ${dim('instead.')}`);
     process.exit(1);
   }
 
@@ -669,7 +1123,7 @@ function doServiceInstall(env) {
   console.log(`    ${cyan(`systemctl --user status ${SERVICE_NAME}`)}`);
   console.log(`    ${cyan(`systemctl --user restart ${SERVICE_NAME}`)}`);
   console.log(`    ${cyan(`journalctl --user -u ${SERVICE_NAME} -f`)}`);
-  console.log(`    ${cyan(`npx pan-ui service remove`)}`);
+  console.log(`    ${cyan(`pan-ui service remove`)}`);
   console.log('');
 }
 
@@ -719,7 +1173,7 @@ function serviceStatus() {
   } catch (err) {
     // systemctl returns non-zero for inactive services
     if (err.stdout) console.log(err.stdout);
-    else console.log(`  ${dim('Service not installed. Run:')} ${cyan('npx pan-ui service install')}`);
+    else console.log(`  ${dim('Service not installed. Run:')} ${cyan('pan-ui service install')}`);
   }
 }
 
@@ -729,7 +1183,8 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  // Parse --port flag
+  // Parse global flags from any position
+  const allArgs = new Set(args);
   let portOverride = null;
   const portIdx = args.indexOf('--port');
   if (portIdx !== -1 && args[portIdx + 1]) {
@@ -740,8 +1195,15 @@ async function main() {
     portOverride = args[shortPortIdx + 1];
   }
 
-  // Parse --daemon / -d flag
-  const isDaemon = args.includes('--daemon') || args.includes('-d');
+  const isDaemon = allArgs.has('--daemon') || allArgs.has('-d');
+
+  // ── Version ────────────────────────────────────────────────────────────
+
+  if (command === 'version' || command === '--version' || command === '-v') {
+    rl.close();
+    console.log(`pan-ui ${getCurrentVersion()}`);
+    process.exit(0);
+  }
 
   // ── Stop ──────────────────────────────────────────────────────────────
 
@@ -789,11 +1251,27 @@ async function main() {
     rl.close();
     console.log('');
     console.log(`  ${dim('Usage:')}`);
-    console.log(`    ${cyan('npx pan-ui service install')}    Install systemd user service`);
-    console.log(`    ${cyan('npx pan-ui service remove')}     Remove systemd user service`);
-    console.log(`    ${cyan('npx pan-ui service status')}     Show service status`);
+    console.log(`    ${cyan('pan-ui service install')}    Install systemd user service`);
+    console.log(`    ${cyan('pan-ui service remove')}     Remove systemd user service`);
+    console.log(`    ${cyan('pan-ui service status')}     Show service status`);
     console.log('');
     process.exit(1);
+  }
+
+  // ── Update ────────────────────────────────────────────────────────────
+
+  if (command === 'update' || command === 'upgrade') {
+    rl.close();
+    await performUpdate();
+    process.exit(0);
+  }
+
+  // ── Sync Hermes ──────────────────────────────────────────────────────
+
+  if (command === 'sync-hermes') {
+    rl.close();
+    await syncHermes(allArgs.has('--force'));
+    process.exit(0);
   }
 
   // ── Setup ─────────────────────────────────────────────────────────────
@@ -801,53 +1279,76 @@ async function main() {
   if (command === 'setup') {
     const env = await setup(true);
     rl.close();
-    console.log(`  ${dim('Start with:')} ${cyan('npx pan-ui')}`);
+    console.log(`  ${dim('Start with:')} ${cyan('pan-ui start')}`);
     console.log('');
     process.exit(0);
   }
 
   // ── Help ──────────────────────────────────────────────────────────────
 
-  if (command === '--help' || command === '-h') {
-    console.log('');
-    console.log(bold('  pan-ui') + dim(' — Beautiful WebUI for Hermes Agent'));
-    console.log('');
-    console.log('  Usage:');
-    console.log(`    ${cyan('npx pan-ui')}                  Start the workspace (foreground)`);
-    console.log(`    ${cyan('npx pan-ui --daemon')}         Start in background`);
-    console.log(`    ${cyan('npx pan-ui stop')}             Stop background daemon`);
-    console.log(`    ${cyan('npx pan-ui status')}           Check if running`);
-    console.log(`    ${cyan('npx pan-ui logs')}             Tail daemon logs`);
-    console.log(`    ${cyan('npx pan-ui setup')}            Run setup wizard`);
-    console.log(`    ${cyan('npx pan-ui service install')}  Install as systemd user service`);
-    console.log(`    ${cyan('npx pan-ui service remove')}   Remove systemd service`);
-    console.log(`    ${cyan('npx pan-ui --port 8080')}      Custom port`);
-    console.log(`    ${cyan('npx pan-ui --help')}           Show this help`);
-    console.log('');
-    console.log('  Environment variables:');
-    console.log(`    ${dim('HERMES_HOME')}                 Path to Hermes home (default: ~/.hermes)`);
-    console.log(`    ${dim('HERMES_API_BASE_URL')}         Hermes API server URL (default: http://127.0.0.1:8642)`);
-    console.log(`    ${dim('HERMES_API_KEY')}              API key for Hermes API server`);
-    console.log(`    ${dim('HERMES_WORKSPACE_USERNAME')}   Login username (default: admin)`);
-    console.log(`    ${dim('HERMES_WORKSPACE_PASSWORD')}   Login password (default: changeme)`);
-    console.log(`    ${dim('HERMES_WORKSPACE_SECRET')}     Session signing secret`);
-    console.log(`    ${dim('HERMES_MOCK_MODE')}            Enable mock data (default: false)`);
-    console.log(`    ${dim('PORT')}                        Server port (default: 3199)`);
-    console.log('');
+  if (command === 'help' || command === '--help' || command === '-h') {
+    rl.close();
+    showHelp();
     process.exit(0);
   }
 
-  // ── Default: setup if first time, then start ──────────────────────────
+  // ── Start (explicit or default) ───────────────────────────────────────
 
-  const env = await setup(false);
+  if (command === 'start' || !command || command.startsWith('-')) {
+    const env = await setup(false);
+    rl.close();
+
+    // Non-blocking update check at startup
+    showUpdateNotice();
+
+    if (isDaemon) {
+      await startDaemon(env, portOverride);
+      process.exit(0);
+    }
+
+    startServer(env, portOverride);
+    return;
+  }
+
+  // ── Unknown command ───────────────────────────────────────────────────
+
   rl.close();
+  console.log('');
+  console.log(`  ${red('✗')} Unknown command: ${cyan(command)}`);
+  console.log('');
+  showHelp();
+  process.exit(1);
+}
 
-  if (isDaemon) {
-    await startDaemon(env, portOverride);
-    process.exit(0);
-  }
-
-  startServer(env, portOverride);
+function showHelp() {
+  console.log('');
+  console.log(bold('  pan-ui') + dim(` v${getCurrentVersion()} — Beautiful WebUI for Hermes Agent`));
+  console.log('');
+  console.log('  ' + bold('Commands:'));
+  console.log(`    ${cyan('pan-ui start')}              Start the workspace (foreground)`);
+  console.log(`    ${cyan('pan-ui start --daemon')}     Start in background`);
+  console.log(`    ${cyan('pan-ui start --port 8080')}  Custom port`);
+  console.log(`    ${cyan('pan-ui stop')}               Stop background daemon`);
+  console.log(`    ${cyan('pan-ui status')}             Check if running`);
+  console.log(`    ${cyan('pan-ui logs')}               Tail daemon logs`);
+  console.log(`    ${cyan('pan-ui setup')}              Run setup wizard`);
+  console.log(`    ${cyan('pan-ui update')}             Check for and install Pan updates`);
+  console.log(`    ${cyan('pan-ui sync-hermes')}        Sync Hermes to the pinned version`);
+  console.log(`    ${cyan('pan-ui version')}            Show current version`);
+  console.log(`    ${cyan('pan-ui service install')}    Install as systemd user service`);
+  console.log(`    ${cyan('pan-ui service remove')}     Remove systemd service`);
+  console.log(`    ${cyan('pan-ui help')}               Show this help`);
+  console.log('');
+  console.log('  ' + bold('Environment variables:'));
+  console.log(`    ${dim('HERMES_HOME')}                 Path to Hermes home (default: ~/.hermes)`);
+  console.log(`    ${dim('HERMES_API_BASE_URL')}         Hermes API server URL (default: http://127.0.0.1:8642)`);
+  console.log(`    ${dim('HERMES_API_KEY')}              API key for Hermes API server`);
+  console.log(`    ${dim('HERMES_WORKSPACE_USERNAME')}   Login username (default: admin)`);
+  console.log(`    ${dim('HERMES_WORKSPACE_PASSWORD')}   Login password (default: changeme)`);
+  console.log(`    ${dim('HERMES_WORKSPACE_SECRET')}     Session signing secret`);
+  console.log(`    ${dim('HERMES_MOCK_MODE')}            Enable mock data (default: false)`);
+  console.log(`    ${dim('PORT')}                        Server port (default: 3199)`);
+  console.log('');
 }
 
 main().catch((err) => {
