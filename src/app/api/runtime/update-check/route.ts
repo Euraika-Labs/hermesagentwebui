@@ -45,7 +45,7 @@ function getCachedResult(current: string): UpdateCheckResult | null {
     if (age < CACHE_TTL && cached.current === current) {
       return cached;
     }
-  } catch {}
+  } catch { /* ignore corrupt cache */ }
   return null;
 }
 
@@ -53,7 +53,7 @@ function cacheResult(result: UpdateCheckResult): void {
   try {
     mkdirSync(CACHE_DIR, { recursive: true });
     writeFileSync(CACHE_FILE, JSON.stringify(result), 'utf-8');
-  } catch {}
+  } catch { /* ignore write failure */ }
 }
 
 export async function GET(request: Request) {
