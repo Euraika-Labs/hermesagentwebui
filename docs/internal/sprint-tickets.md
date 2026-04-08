@@ -1086,6 +1086,308 @@ MVP can be called ready when all of the following are true:
 
 ---
 
+## Sprint 9 — Marketplace: MCP Server Hub (Phase 3a)
+
+### HW-055 — Background MCP registry sync service
+**Goal:** Periodically fetch and cache all servers from the Official MCP Registry.
+
+**Scope:**
+- create `src/server/hermes/hub-mcp.ts` with async registry client
+- fetch `registry.modelcontextprotocol.io/v0.1/servers` with cursor pagination
+- write JSON cache to `~/.hermes/profiles/{id}/.mcp-hub-cache/mcp-registry.json`
+- incremental sync via `updated_since` parameter on subsequent runs
+- `setInterval` on server boot (every 6 hours), plus manual refresh endpoint
+- filter to `isLatest: true` and `status: "active"` before caching
+
+**Dependencies:** none (greenfield)
+
+**Acceptance criteria:**
+- cache file is populated within 60s of server start
+- incremental sync fetches only new/updated entries
+- cache file is valid JSON with 10,000+ server entries
+- no blocking of the event loop (fully async, no execFileSync)
+
+**Suggested owner:** backend
+
+### HW-056 — MCP Hub search index (Fuse.js singleton)
+**Goal:** Fast client-side-quality search across 13,000+ MCP servers.
+
+**Scope:**
+- build Fuse.js index as module-level singleton in `hub-mcp.ts`
+- index fields: name, title, description, author
+- rebuild index only when cache file mtime changes
+- expose `searchHubMcpServers(query)` function
+- return: `{ servers: McpHubServer[], total, filtered }`
+
+**Dependencies:** HW-055
+
+**Acceptance criteria:**
+- search returns results in <50ms for typical queries
+- index is NOT rebuilt per-request (singleton pattern)
+- empty query returns featured/all servers
+
+**Suggested owner:** backend
+
+### HW-057 — MCP Hub API routes
+**Goal:** REST endpoints for browsing and installing MCP servers.
+
+**Scope:**
+- `GET /api/extensions/hub?q=search` — list/search hub servers
+- `POST /api/extensions/hub/install` — install a server from the hub
+- filter out already-installed servers (compare against real-extensions)
+- input validation: strict regex for server identifiers
+- async execFile for install commands (never execFileSync)
+
+**Dependencies:** HW-055, HW-056
+
+**Acceptance criteria:**
+- GET returns paginated results with search
+- POST installs server and writes to config.yaml (via eemeli/yaml parseDocument)
+- already-installed servers are excluded from hub results
+- invalid identifiers are rejected with 400
+
+**Suggested owner:** backend
+
+### HW-058 — MCP Hub "Discover" tab UI
+**Goal:** Add browsable MCP server grid to Extensions page.
+
+**Scope:**
+- add "Discover" tab to `extensions-screen.tsx` (next to "Installed")
+- create `src/features/extensions/components/mcp-hub.tsx` — hub grid
+- create `src/features/extensions/components/mcp-hub-card.tsx` — server card
+- create `src/features/extensions/api/use-mcp-hub.ts` — React Query hooks
+- search form: controlled input → query on submit
+- 3-column responsive grid with loading/empty/error states
+
+**Dependencies:** HW-057
+
+**Acceptance criteria:**
+- Discover tab shows MCP servers from the hub
+- search filters results in real-time
+- cards show: name, description, author, transport type, verified badge
+- empty state explains what MCP servers are
+
+**Suggested owner:** frontend
+
+### HW-059 — MCP install wizard with env var validation
+**Goal:** One-click install flow with proper environment variable configuration.
+
+**Scope:**
+- create `src/features/extensions/components/mcp-install-dialog.tsx`
+- step 1: show server details, required env vars, transport type
+- step 2: env var inputs with description, validation hint, secret masking
+- step 3: confirm and install (calls POST /api/extensions/hub/install)
+- source env var metadata from `packages[].environmentVariables[]`
+- probe for required tools (uv, docker, npx) and warn if missing
+- pin to exact version from registry, never `latest`
+
+**Dependencies:** HW-057, HW-058
+
+**Acceptance criteria:**
+- env vars show description and "How do I get this?" guidance
+- secret values are masked in the input
+- missing tools (uv, docker) show clear warning before install
+- successful install → server appears in "Installed" tab
+- failed install → clear error message, no partial config state
+
+**Suggested owner:** frontend
+
+### HW-060 — Featured servers curation and trust badges
+**Goal:** Default "Featured" view with curated servers and trust indicators.
+
+**Scope:**
+- create featured servers list (15-30 hand-picked servers) as JSON config
+- "Featured" is the default sub-tab within Discover (before "All Servers")
+- trust badges: "Verified" (in official registry), "Community", "Unreviewed"
+- source verified flag from official registry inclusion + Smithery enrichment
+- badge component: `src/features/extensions/components/trust-badge.tsx`
+
+**Dependencies:** HW-058
+
+**Acceptance criteria:**
+- Discover tab defaults to Featured, not All Servers
+- trust badges appear on every server card
+- featured list is configurable (JSON file, not hardcoded)
+- at least 15 servers in the initial featured list
+
+**Suggested owner:** frontend/product
+
+---
+
+## Sprint 10 — Marketplace: Plugin Management UI (Phase 3b)
+
+### HW-061 — Plugin backend: read and list plugins
+**Goal:** Backend service to discover and list installed Hermes plugins.
+
+**Scope:**
+- create `src/server/hermes/real-plugins.ts`
+- read `~/.hermes/plugins/*/plugin.yaml` (user plugins)
+- read `~/.hermes/hermes-agent/plugins/memory/*/plugin.yaml` (builtins)
+- parse manifest: name, version, description, provides_tools, requires_env
+- check `config.yaml → plugins.disabled` for enabled/disabled state
+- use `eemeli/yaml` for all YAML operations
+
+**Dependencies:** none (greenfield)
+
+**Acceptance criteria:**
+- lists all user and builtin plugins with correct metadata
+- enabled/disabled state matches config.yaml
+- gracefully handles missing or malformed plugin.yaml files
+
+**Suggested owner:** backend
+
+### HW-062 — Plugin API routes (CRUD + install)
+**Goal:** REST API for plugin management.
+
+**Scope:**
+- `GET /api/plugins` — list all plugins
+- `GET /api/plugins/[id]` — plugin detail
+- `POST /api/plugins/install` — `hermes plugins install owner/repo` (async execFile)
+- `DELETE /api/plugins/[id]` — `hermes plugins remove` (async execFile)
+- `POST /api/plugins/[id]/enable` — toggle enabled state in config.yaml
+- input validation: strict regex for GitHub owner/repo slugs
+- all execFile calls use array form with timeout
+
+**Dependencies:** HW-061
+
+**Acceptance criteria:**
+- CRUD operations work for user plugins
+- builtin plugins cannot be deleted
+- install validates identifier before exec
+- enable/disable persists to config.yaml preserving comments
+
+**Suggested owner:** backend
+
+### HW-063 — Plugin UI: list, detail, and enable/disable
+**Goal:** New /plugins page making plugins visible and manageable.
+
+**Scope:**
+- create `src/app/plugins/page.tsx`
+- create `src/features/plugins/plugins-screen.tsx` — list view
+- create `src/features/plugins/components/plugin-card.tsx` — card component
+- create `src/features/plugins/api/use-plugins.ts` — React Query hooks
+- add "Plugins" to sidebar navigation (after Integrations)
+- show: name, version, author, tools provided, enabled/disabled toggle
+- detail view: full description, provided tools list, env var status
+
+**Dependencies:** HW-062
+
+**Acceptance criteria:**
+- /plugins page lists all installed plugins
+- enable/disable toggle works and persists
+- plugin detail shows provided tools and hooks
+- sidebar shows Plugins nav item
+
+**Suggested owner:** frontend
+
+### HW-064 — Plugin install dialog
+**Goal:** Install plugins from GitHub repositories.
+
+**Scope:**
+- create `src/features/plugins/components/install-plugin-dialog.tsx`
+- input: GitHub owner/repo or full URL
+- pre-flight: validate identifier format, check git accessibility
+- install via POST /api/plugins/install
+- show progress and handle timeout (30s) gracefully
+- on success: invalidate plugin list, show new plugin
+
+**Dependencies:** HW-062, HW-063
+
+**Acceptance criteria:**
+- install dialog accepts owner/repo format
+- invalid identifiers are rejected client-side
+- install progress is visible
+- timeout errors show clear message
+- successful install refreshes the list
+
+**Suggested owner:** frontend
+
+---
+
+## Sprint 11 — Marketplace: Unified Shell (Phase 3c)
+
+### HW-065 — Unified /marketplace route and shell
+**Goal:** Single entry point for all discoverable extensions.
+
+**Scope:**
+- create `src/app/marketplace/page.tsx`
+- create `src/features/marketplace/marketplace-screen.tsx`
+- tabs: Skills | MCP Servers | Plugins
+- unified search bar that searches across all three
+- each tab embeds the existing hub component (skills hub, mcp hub, plugin list)
+- add "Marketplace" to sidebar (or replace individual hub entries)
+
+**Dependencies:** HW-058, HW-063 (both hub UIs must exist)
+
+**Acceptance criteria:**
+- /marketplace page renders with three tabs
+- unified search dispatches to all three backends
+- tab content matches individual hub pages
+- navigation is intuitive (sidebar entry exists)
+
+**Suggested owner:** frontend
+
+### HW-066 — Cross-registry unified search
+**Goal:** One search box, results from Skills + MCP Servers + Plugins.
+
+**Scope:**
+- create `src/features/marketplace/api/use-marketplace-search.ts`
+- parallel queries to /api/skills/hub, /api/extensions/hub, /api/plugins
+- merge and rank results (exact name match > partial > fuzzy)
+- show result type badge (Skill / MCP Server / Plugin)
+- debounced search input (300ms)
+
+**Dependencies:** HW-065
+
+**Acceptance criteria:**
+- search returns mixed results from all three sources
+- result type is clearly indicated
+- no duplicate results
+- search is responsive (<500ms perceived)
+
+**Suggested owner:** frontend
+
+### HW-067 — Marketplace polish and empty states
+**Goal:** Production-quality UX for the marketplace.
+
+**Scope:**
+- empty states for each tab explaining what Skills/MCP Servers/Plugins are
+- loading skeletons for hub grids
+- error boundaries per tab (one tab failing doesn't break others)
+- "Installed" badge on items already installed
+- responsive layout (mobile-friendly grid)
+
+**Dependencies:** HW-065, HW-066
+
+**Acceptance criteria:**
+- every tab has a meaningful empty state
+- loading shows skeleton, not spinner
+- one backend failure doesn't crash the whole page
+- installed items are visually marked
+
+**Suggested owner:** frontend
+
+### HW-068 — execFileSync removal and async migration
+**Goal:** Remove all synchronous child_process calls from Pan codebase.
+
+**Scope:**
+- audit all `execFileSync` usage in `src/server/hermes/*.ts`
+- replace with `util.promisify(execFile)` with array args and timeout
+- specifically fix: `hub-skills.ts` (existing), any new marketplace code
+- add ESLint rule or grep-based CI check to prevent reintroduction
+
+**Dependencies:** none (can run in parallel with any sprint)
+
+**Acceptance criteria:**
+- zero `execFileSync` calls in the codebase
+- all child_process calls use async + array form + timeout
+- CI check prevents new execFileSync from being added
+
+**Suggested owner:** backend
+
+
+---
+
 # Recommended Immediate Execution Start
 
 Start Sprint 1 immediately with HW-001 through HW-009.
