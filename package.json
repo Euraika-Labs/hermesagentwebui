@@ -1,6 +1,6 @@
 {
   "name": "@euraika-labs/pan-ui",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Beautiful WebUI for Hermes Agent — chat, skills, plugins, memory, profiles, and runtime diagnostics in one workspace.",
   "keywords": [
     "hermes",

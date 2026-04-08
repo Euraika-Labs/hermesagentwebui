@@ -19,7 +19,7 @@
  */
 
 import { createInterface } from 'node:readline';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, unlinkSync, openSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, unlinkSync, openSync, cpSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { execSync, spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -822,6 +822,37 @@ function patchStandalonePaths() {
   }
 }
 
+/**
+ * Copy static assets into the standalone directory so server.js can serve them.
+ * Next.js standalone output requires:
+ *   .next/standalone/.next/static/  ← client JS/CSS chunks
+ *   .next/standalone/public/        ← public assets (favicon, images, etc.)
+ * These are NOT included in the standalone output by design; they must be copied.
+ */
+function prepareStandaloneAssets() {
+  const standaloneDir = join(PKG_ROOT, '.next', 'standalone');
+  const staticSrc = join(PKG_ROOT, '.next', 'static');
+  const staticDst = join(standaloneDir, '.next', 'static');
+  const publicSrc = join(PKG_ROOT, 'public');
+  const publicDst = join(standaloneDir, 'public');
+
+  // Copy .next/static/ → .next/standalone/.next/static/ (if not already there)
+  if (existsSync(staticSrc) && !existsSync(staticDst)) {
+    try {
+      cpSync(staticSrc, staticDst, { recursive: true });
+    } catch {
+      // Non-fatal — pages may fail to load CSS/JS but the server will still start
+    }
+  }
+
+  // Copy public/ → .next/standalone/public/ (if not already there)
+  if (existsSync(publicSrc) && !existsSync(publicDst)) {
+    try {
+      cpSync(publicSrc, publicDst, { recursive: true });
+    } catch {}
+  }
+}
+
 function startServer(env, portOverride) {
   const port = portOverride || env.PORT || '3199';
 
@@ -839,6 +870,7 @@ function startServer(env, portOverride) {
   if (standaloneServer) {
     // Standalone mode — shipped as npm package
     patchStandalonePaths();
+    prepareStandaloneAssets();
     startBanner(port);
     const child = spawn('node', [standaloneServer], {
       cwd: join(PKG_ROOT, '.next', 'standalone'),
@@ -926,6 +958,7 @@ function startDaemon(env, portOverride) {
 
   if (standaloneServer) {
     patchStandalonePaths();
+    prepareStandaloneAssets();
     cmd = process.execPath; // node
     cmdArgs = [standaloneServer];
     cwd = join(PKG_ROOT, '.next', 'standalone');
