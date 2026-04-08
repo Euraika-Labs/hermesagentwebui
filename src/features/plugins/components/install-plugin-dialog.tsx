@@ -106,7 +106,7 @@ export function InstallPluginDialog({ open, onClose }: InstallPluginDialogProps)
           <button
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={installPlugin.isPending || !repo.trim()}
+            disabled={installPlugin.isPending || !repo.trim() || !repoValid}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {installPlugin.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
