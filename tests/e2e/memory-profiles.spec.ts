@@ -20,7 +20,8 @@ test('user can edit memory, inspect context, and view audit log', async ({ page 
   await page.getByRole('button', { name: 'Save user memory' }).click();
 
   await page.getByRole('button', { name: 'Context inspector' }).click();
-  await expect(page.getByText(/Context session for memory and profiles/).first()).toBeVisible();
+  await expect(page.getByText(/Context inspector/).first()).toBeVisible();
+  await expect(page.getByText(/session and profile context/).first()).toBeVisible();
 
   await page.getByRole('link', { name: 'Profiles' }).click();
   await expect(page).toHaveURL(/\/profiles$/);

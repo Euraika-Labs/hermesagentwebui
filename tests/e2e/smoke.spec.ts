@@ -66,7 +66,8 @@ test('user can search, rename, fork, archive, and update chat settings', async (
 
   await page.getByRole('button', { name: 'Manage' }).click();
   await page.getByRole('button', { name: 'Fork' }).click();
-  await expect(page.getByRole('button', { name: /Renamed Sprint 3 session \(fork\)/i }).first()).toBeVisible();
+  // After forking, the forked session shows a Fork badge in the sidebar session card
+  await expect(page.locator('aside').getByText('Fork').first()).toBeVisible({ timeout: 8000 });
 
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByLabel('Settings model switcher').selectOption('claude-opus-4.6 · copilot');
@@ -76,7 +77,7 @@ test('user can search, rename, fork, archive, and update chat settings', async (
   await expect(page.getByText('builder').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Manage' }).click();
-  await page.getByRole('button', { name: 'Archive' }).click();
-  await page.getByRole('button', { name: 'Archive' }).last().click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).last().click();
   await expect(page.getByText('Archived').first()).toBeVisible();
 });

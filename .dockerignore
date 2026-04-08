@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+tests/docker
+tests/functional
+tests/e2e
+.env*
+.hermes
+*.log

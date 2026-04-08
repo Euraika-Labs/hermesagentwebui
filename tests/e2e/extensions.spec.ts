@@ -37,6 +37,6 @@ test('user can add, configure, test, and toggle an MCP extension', async ({ page
   await firstScope.selectOption('session');
 
   await page.getByRole('link', { name: 'Extensions' }).click();
-  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Tools' }).click();
   await expect(page.getByText('docs-mcp')).toBeVisible();
 });

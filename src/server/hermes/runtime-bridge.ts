@@ -197,24 +197,71 @@ export async function getHermesRuntimeStatus(): Promise<RuntimeStatus> {
   const effectiveHome = getEffectiveHome();
 
   if (!hermesPath || !fs.existsSync(effectiveHome)) {
+    // Binary or home missing — still probe the API so headless/Docker
+    // deployments that connect to a remote gateway report reachability.
+    const apiStatus = await probeHermesApi();
+
+    // Even without a binary we can still detect filesystem assets when
+    // effectiveHome exists (e.g. Docker with a mounted .hermes volume).
+    const homeExists = fs.existsSync(effectiveHome);
+    const configPath = homeExists ? path.join(effectiveHome, 'config.yaml') : undefined;
+    const memoriesDir = homeExists ? path.join(effectiveHome, 'memories') : undefined;
+    const skillsDir = homeExists ? path.join(effectiveHome, 'skills') : undefined;
+    const stateDbPath = homeExists ? path.join(effectiveHome, 'state.db') : undefined;
+
+    const memoryFilesPresent = memoriesDir
+      ? ['USER.md', 'MEMORY.md'].filter((f) => fs.existsSync(path.join(memoriesDir, f)))
+      : [];
+
+    const sessionsCount = stateDbPath && fs.existsSync(stateDbPath)
+      ? (() => {
+          try {
+            return runPythonJson(
+              "import sqlite3, json, sys\nconn=sqlite3.connect(sys.argv[1])\ncur=conn.cursor()\ncur.execute('SELECT COUNT(*) FROM sessions')\nprint(json.dumps(cur.fetchone()[0]))",
+              [stateDbPath],
+            ) as number;
+          } catch { return 0; }
+        })()
+      : 0;
+
+    const skillsCount = skillsDir && fs.existsSync(skillsDir)
+      ? (() => {
+          try {
+            return runPythonJson(
+              "import json, sys\nfrom pathlib import Path\nroot=Path(sys.argv[1])\ncount=sum(1 for p in root.rglob('SKILL.md'))\nprint(json.dumps(count))",
+              [skillsDir],
+            ) as number;
+          } catch { return 0; }
+        })()
+      : 0;
+
     return {
-      available: false,
+      available: apiStatus.reachable,
       mockMode,
+      hermesHome,
+      activeProfile: detectedActive,
+      configPath: configPath && fs.existsSync(configPath) ? configPath : undefined,
       apiBaseUrl: hermesConfig.baseUrl,
-      apiReachable: false,
-      apiMessage: 'Hermes runtime is not installed or HERMES_HOME is unavailable.',
-      profiles: [],
+      apiReachable: apiStatus.reachable,
+      apiMessage: apiStatus.reachable
+        ? apiStatus.message
+        : 'Hermes runtime is not installed or HERMES_HOME is unavailable.',
+      apiStatus: apiStatus.status,
+      profiles: detectedActive ? [detectedActive] : [],
       mcpServers: [],
       modelOptions: [],
-      skillsCount: 0,
-      sessionsCount: 0,
+      skillsCount,
+      sessionsCount,
       recentSessions: [],
+      userMemoryPath: memoriesDir ? path.join(memoriesDir, 'USER.md') : undefined,
+      agentMemoryPath: memoriesDir ? path.join(memoriesDir, 'MEMORY.md') : undefined,
+      memoryFilesPresent,
       binaryDetected: Boolean(hermesPath),
-      configDetected: fs.existsSync(effectiveHome),
-      profileContext: describeHermesProfileContext(null),
+      configDetected: Boolean(configPath && fs.existsSync(configPath)),
+      profileContext: describeHermesProfileContext(detectedActive),
       remediationHints: [
-        'Install the Hermes CLI and ensure `hermes` is on PATH.',
-        'Set HERMES_HOME to a readable Hermes home directory.',
+        ...(!hermesPath ? ['Install the Hermes CLI and ensure `hermes` is on PATH.'] : []),
+        ...(!homeExists ? ['Set HERMES_HOME to a readable Hermes home directory.'] : []),
         'Open Settings → Health to inspect runtime detection details.',
       ],
     };

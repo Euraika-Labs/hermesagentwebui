@@ -14,5 +14,9 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      HERMES_MOCK_MODE: 'true',
+    },
   },
 });
