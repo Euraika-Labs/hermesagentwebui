@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Bot, Brain, FolderTree, Library, MessageSquare, Puzzle, Settings, Workflow } from 'lucide-react';
+import { Bot, Brain, FolderTree, Library, MessageSquare, Puzzle, Settings, Store, Workflow } from 'lucide-react';
 import { useUIStore } from '@/lib/store/ui-store';
 import { cn } from '@/lib/utils';
 import { UpdateBanner } from './update-banner';
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: MessageSquare, description: 'Active workspace runs and transcripts' },
+  { href: '/marketplace', label: 'Marketplace', icon: Store, description: 'Discover and install skills, MCP servers, and plugins' },
   { href: '/skills', label: 'Skills', icon: Library, description: 'Reusable skills and local edits' },
   { href: '/extensions', label: 'Integrations', icon: Bot, description: 'Installed · MCP Servers · Tools · Approvals · Diagnostics' },
   { href: '/plugins', label: 'Plugins', icon: Puzzle, description: 'Custom tools, hooks, and integrations from plugins' },
