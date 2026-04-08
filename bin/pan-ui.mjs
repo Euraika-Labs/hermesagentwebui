@@ -80,7 +80,6 @@ const HERMES_FORK_REPO = HERMES_VERSION_CONFIG?.repo || 'https://github.com/Eura
 const HERMES_PINNED_TAG = HERMES_VERSION_CONFIG?.tag || 'main';
 const HERMES_PINNED_VERSION = HERMES_VERSION_CONFIG?.version || null;
 const HERMES_MIN_VERSION = HERMES_VERSION_CONFIG?.minVersion || '0.7.0';
-const HERMES_MAX_VERSION = HERMES_VERSION_CONFIG?.maxVersion || null;
 // Fallback to upstream install script for manual instructions
 const HERMES_INSTALL_URL = 'https://raw.githubusercontent.com/Euraika-Labs/hermes-agent/main/scripts/install.sh';
 
@@ -109,30 +108,24 @@ function parseHermesVersion(str) {
 
 /**
  * Check if the installed hermes version is compatible with Pan's requirements.
- * Uses the existing compareVersions(string, string) for semver comparison.
- * Returns { compatible, installed, required, message }.
+ * - Below minVersion: incompatible (needs upgrade)
+ * - At or above minVersion: compatible (newer versions are fine)
+ * Returns { compatible, installed, required, needsUpgrade, message }.
  */
 function checkHermesCompatibility(versionString) {
   const installed = parseHermesVersion(versionString);
-  if (!installed) return { compatible: true, installed: null, message: null }; // can't check, assume ok
+  if (!installed) return { compatible: true, installed: null, needsUpgrade: false, message: null }; // can't check, assume ok
 
   if (HERMES_MIN_VERSION && compareVersions(installed, HERMES_MIN_VERSION) < 0) {
     return {
       compatible: false,
       installed,
       required: `>=${HERMES_MIN_VERSION}`,
+      needsUpgrade: true,
       message: `Hermes ${installed} is too old. Pan requires >=${HERMES_MIN_VERSION}.`
     };
   }
-  if (HERMES_MAX_VERSION && compareVersions(installed, HERMES_MAX_VERSION) >= 0) {
-    return {
-      compatible: false,
-      installed,
-      required: `<${HERMES_MAX_VERSION}`,
-      message: `Hermes ${installed} is too new (untested). Pan is tested with <${HERMES_MAX_VERSION}.`
-    };
-  }
-  return { compatible: true, installed, message: null };
+  return { compatible: true, installed, needsUpgrade: false, message: null };
 }
 
 function detectHermesHome() {
@@ -327,14 +320,20 @@ async function syncHermes(force = false) {
   const hermesBin = detectHermesBinary();
   if (hermesBin && !force) {
     const version = detectHermesVersion(hermesBin);
-    const compat = checkHermesCompatibility(version);
-    if (compat.compatible && compat.installed === HERMES_PINNED_VERSION) {
-      console.log(`  ${green('✓')} Already on the pinned version (${compat.installed})`);
-      console.log(`  ${dim('Use --force to reinstall anyway')}`);
-      return;
-    }
-    if (compat.installed) {
-      console.log(`  ${dim('Current:')} ${yellow(compat.installed)} → ${green(HERMES_PINNED_VERSION)}`);
+    const parsed = parseHermesVersion(version);
+    if (parsed) {
+      if (parsed === HERMES_PINNED_VERSION) {
+        console.log(`  ${green('✓')} Already on the pinned version (${parsed})`);
+        console.log(`  ${dim('Use --force to reinstall anyway')}`);
+        return;
+      }
+      if (compareVersions(parsed, HERMES_PINNED_VERSION) > 0) {
+        console.log(`  ${green('✓')} Installed version (${parsed}) is newer than pinned (${HERMES_PINNED_VERSION}) — nothing to do`);
+        console.log(`  ${dim('Use --force to downgrade to the pinned version')}`);
+        return;
+      }
+      // Older than pinned — will upgrade
+      console.log(`  ${dim('Current:')} ${yellow(parsed)} → ${green(HERMES_PINNED_VERSION)}`);
     }
   }
 
@@ -674,10 +673,23 @@ async function setup(forceWizard = false) {
 
     // Check version compatibility with Pan's pinned range
     const compat = checkHermesCompatibility(version);
-    if (!compat.compatible) {
+    if (!compat.compatible && compat.needsUpgrade) {
       console.log(`  ${yellow('⚠')} ${compat.message}`);
-      console.log(`  ${dim(`Pan is tested with Hermes ${HERMES_PINNED_VERSION} (${HERMES_FORK_REPO} @ ${HERMES_PINNED_TAG})`)}`);
-      console.log(`  ${dim('Run:')} ${cyan('pan-ui sync-hermes')} ${dim('to install the compatible version')}`);
+      console.log(`  ${dim(`Pan is tested with Hermes >=${HERMES_MIN_VERSION} (${HERMES_FORK_REPO} @ ${HERMES_PINNED_TAG})`)}`);
+      console.log('');
+      const doUpgrade = (await ask(`  ${bold('Upgrade Hermes Agent now? [Y/n]:')} `)).trim().toLowerCase();
+
+      if (doUpgrade === '' || doUpgrade === 'y' || doUpgrade === 'yes') {
+        await syncHermes(true);
+        // Re-detect after upgrade
+        hermesBin = detectHermesBinary();
+        if (hermesBin) {
+          const newVersion = detectHermesVersion(hermesBin);
+          console.log(`  ${green('✓')} Hermes upgraded: ${cyan(hermesBin)}${newVersion ? ` (${newVersion})` : ''}`);
+        }
+      } else {
+        console.log(`  ${dim('Skipped. Some features may not work correctly with an older Hermes version.')}`);
+      }
     }
   } else {
     console.log(`  ${yellow('!')} Hermes Agent not found in PATH`);
