@@ -115,9 +115,21 @@ Installed skills with search and category filters. Discover tab for the skills.s
 </details>
 
 <details>
+<summary><strong>Marketplace</strong></summary>
+
+![Marketplace discovery view](docs/assets/screenshots/marketplace.png)
+</details>
+
+<details>
 <summary><strong>Extensions & MCP</strong></summary>
 
 ![Extensions page](docs/assets/screenshots/extensions.png)
+</details>
+
+<details>
+<summary><strong>Plugins</strong></summary>
+
+![Plugins page](docs/assets/screenshots/plugins.png)
 </details>
 
 <details>
