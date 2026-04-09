@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { archiveSession, deleteSession, getSession, renameSession, updateSessionSettings } from '@/server/chat/session-store';
+import { requireApiAuth } from '@/server/auth/guards';
 import { getSelectedProfileFromCookie } from '@/server/hermes/profile-cookie';
 import { archiveRealSession, deleteRealSession, getRealSession, renameRealSession, updateRealSessionSettings } from '@/server/hermes/real-sessions';
 
 const mockMode = process.env.HERMES_MOCK_MODE === 'true';
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const { id } = await params;
   const profileId = await getSelectedProfileFromCookie();
   const session = getRealSession(profileId, id) ?? (mockMode ? getSession(id) : null);
@@ -18,6 +22,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as {
     title?: string;
@@ -52,6 +59,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const { id } = await params;
 
   try {

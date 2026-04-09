@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { ChatSession } from '@/lib/types/chat';
 import { addAssistantMessage, addUserMessage, getSession } from '@/server/chat/session-store';
+import { requireApiAuth } from '@/server/auth/guards';
 import { hermesFetch } from '@/server/hermes/client';
 import { HermesConnectionError, HermesResponseError } from '@/server/hermes/errors';
 import { parseSSEChunk } from '@/server/hermes/stream-parser';
@@ -373,6 +374,9 @@ function createChatCompletionsStream(
 }
 
 export async function POST(request: Request) {
+  const auth = await requireApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const { sessionId, message, attachmentIds } = (await request.json().catch(() => ({}))) as {
     sessionId?: string;
     message?: string;
