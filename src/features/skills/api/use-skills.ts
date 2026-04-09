@@ -153,10 +153,10 @@ export function useHubSkills(query?: string) {
 export function useInstallHubSkill() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ identifier, category }: { identifier: string; category?: string }) =>
+    mutationFn: ({ identifier, category, force }: { identifier: string; category?: string; force?: boolean }) =>
       apiFetch<{ success: boolean; identifier: string }>('/api/skills/hub/install', {
         method: 'POST',
-        body: JSON.stringify({ identifier, category }),
+        body: JSON.stringify({ identifier, category, force }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['skills'] });

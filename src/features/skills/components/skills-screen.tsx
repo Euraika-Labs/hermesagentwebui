@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Download, ExternalLink, FolderOpen, Globe, Search, Shield, ShieldAlert, ShieldCheck, Star, X } from 'lucide-react';
+import { AlertTriangle, Download, ExternalLink, FolderOpen, Globe, Search, Shield, ShieldAlert, ShieldCheck, Star, X } from 'lucide-react';
 import { useContextInspector } from '@/features/memory/api/use-memory';
 import { SkillCard } from '@/features/skills/components/skill-card';
 import { useSkills, useSkillCategories, useHubSkills, useInstallHubSkill, type HubSkill } from '@/features/skills/api/use-skills';
@@ -32,6 +32,16 @@ function SecurityBadges({ audits }: { audits?: Record<string, string> }) {
       ))}
     </div>
   );
+}
+
+type BlockedInstallState = {
+  skill: HubSkill;
+  message: string;
+};
+
+function isForceableInstallError(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes('use --force to override');
 }
 
 function HubSkillCard({ skill, onInstall, installing }: { skill: HubSkill; onInstall: () => void; installing: boolean }) {
@@ -115,6 +125,8 @@ export function SkillsScreen() {
   const hubQuery = useHubSkills(hubSearchQuery || undefined);
   const installHubSkill = useInstallHubSkill();
   const [installingId, setInstallingId] = useState<string | null>(null);
+  const [blockedInstall, setBlockedInstall] = useState<BlockedInstallState | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
   const { selectedProfileId, activeSessionId, setActiveSessionId } = useUIStore();
 
   useEffect(() => {
@@ -167,10 +179,19 @@ export function SkillsScreen() {
   const enabledCount = allSkills.filter((s) => s.enabled).length;
   const withFilesCount = allSkills.filter((s) => s.linkedFiles && s.linkedFiles.length > 0).length;
 
-  async function handleHubInstall(skill: HubSkill) {
+  async function handleHubInstall(skill: HubSkill, force = false) {
     setInstallingId(skill.id);
+    setInstallError(null);
     try {
-      await installHubSkill.mutateAsync({ identifier: skill.identifier });
+      await installHubSkill.mutateAsync({ identifier: skill.identifier, force });
+      setBlockedInstall(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!force && isForceableInstallError(message)) {
+        setBlockedInstall({ skill, message });
+        return;
+      }
+      setInstallError(message);
     } finally {
       setInstallingId(null);
     }
@@ -186,6 +207,12 @@ export function SkillsScreen() {
             : <>Discover skills from skills.sh and other registries. {hubSkills.length} available to install{hubQuery.data?.total ? ` (${hubQuery.data.total} total, ${hubQuery.data.total - hubSkills.length} already installed)` : ''}.</>}
         </p>
       </div>
+
+      {installError ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-foreground">
+          {installError}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-2">
@@ -307,6 +334,47 @@ export function SkillsScreen() {
       {/* ─── DISCOVER TAB ─────────────────────── */}
       {tab === 'discover' ? (
         <>
+          {blockedInstall ? (
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-xl">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-foreground">Security scan blocked this install</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {blockedInstall.skill.name} comes from a community source and triggered a caution verdict. Pan blocked the default install to avoid silently pulling in risky skills.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-border/70 bg-card/60 p-4 text-sm text-foreground">
+                  <pre className="whitespace-pre-wrap break-words text-xs leading-6 text-muted-foreground">{blockedInstall.message}</pre>
+                </div>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  If you trust this skill and understand the findings above, you can force the install once. Otherwise, cancel and pick a different skill.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBlockedInstall(null)}
+                    className="rounded-lg border border-border px-4 py-2 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleHubInstall(blockedInstall.skill, true)}
+                    disabled={installingId === blockedInstall.skill.id}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {installingId === blockedInstall.skill.id ? 'Installing…' : 'Install anyway'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {hubQuery.isLoading ? <p className="text-sm text-muted-foreground">Searching skills.sh…</p> : null}
 
           {!hubQuery.isLoading && hubSkills.length === 0 ? (

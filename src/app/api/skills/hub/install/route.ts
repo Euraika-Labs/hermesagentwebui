@@ -4,13 +4,13 @@ import { installHubSkill } from '@/server/hermes/hub-skills';
 
 export async function POST(request: Request) {
   await getSelectedProfileFromCookie();
-  const body = await request.json() as { identifier: string; category?: string };
+  const body = await request.json() as { identifier: string; category?: string; force?: boolean };
 
   if (!body.identifier) {
     return NextResponse.json({ error: 'Missing identifier' }, { status: 400 });
   }
 
-  const result = await installHubSkill(body.identifier, body.category);
+  const result = await installHubSkill(body.identifier, body.category, body.force === true);
   if (!result.success) {
     return NextResponse.json({ error: result.error ?? 'Install failed' }, { status: 500 });
   }

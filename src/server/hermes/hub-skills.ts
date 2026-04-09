@@ -216,10 +216,11 @@ export async function searchHubSkills(query: string, source = 'skills-sh', limit
 /**
  * Install a skill from the hub via hermes CLI.
  */
-export async function installHubSkill(identifier: string, category?: string): Promise<{ success: boolean; error?: string }> {
+export async function installHubSkill(identifier: string, category?: string, force = false): Promise<{ success: boolean; error?: string }> {
   try {
     const args = ['skills', 'install', identifier, '--yes'];
     if (category) args.push('--category', category);
+    if (force) args.push('--force');
     // Override HERMES_HOME to the root (~/.hermes) so skills install to the
     // global dir and survive profile resets.
     const env = { ...process.env, HERMES_HOME: getHermesHome() };
