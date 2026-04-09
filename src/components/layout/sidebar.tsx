@@ -9,10 +9,10 @@ import { UpdateBanner } from './update-banner';
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: MessageSquare, description: 'Your chats and chat history' },
-  { href: '/marketplace', label: 'Marketplace', icon: Store, description: 'Discover and install skills, MCP servers, and plugins' },
-  { href: '/skills', label: 'Skills', icon: Library, description: 'Reusable skills and local edits' },
-  { href: '/extensions', label: 'Integrations', icon: Bot, description: 'Installed integrations, MCP servers, tools, approvals, and diagnostics' },
-  { href: '/plugins', label: 'Plugins', icon: Puzzle, description: 'Automations, tools, and hooks added by plugins' },
+  { href: '/marketplace', label: 'Marketplace', icon: Store, description: 'Discover skills, MCP servers, and plugins before you install them' },
+  { href: '/skills', label: 'Skills', icon: Library, description: 'Reusable procedures, references, and local skill edits' },
+  { href: '/extensions', label: 'Integrations', icon: Bot, description: 'Live integrations, MCP servers, available tools, approvals, and diagnostics' },
+  { href: '/plugins', label: 'Plugins', icon: Puzzle, description: 'Repo-based extensions for custom hooks and bundled tools' },
   { href: '/memory', label: 'Memory', icon: Brain, description: 'User memory, agent memory, context, and chat history' },
   { href: '/profiles', label: 'Profiles', icon: FolderTree, description: 'Active profile, defaults, policies, and access' },
   { href: '/settings', label: 'Settings', icon: Settings, description: 'Runtime, diagnostics, and environment controls' },
