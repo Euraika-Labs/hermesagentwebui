@@ -24,7 +24,7 @@ const tabs: Array<{ id: RightDrawerTab; label: string }> = [
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-lg border border-border/70 bg-background/80 p-4 shadow-[var(--shadow-card)]">
+    <section className="space-y-3 rounded-2xl bg-background/45 p-4">
       <div>
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p> : null}
@@ -76,15 +76,14 @@ export function RightDrawer() {
   return (
     <aside
       className={cn(
-        'fixed right-4 top-[calc(1rem+72px)] z-30 hidden h-[calc(100vh-5.75rem)] w-[360px] shrink-0 rounded-xl border border-border/70 bg-card/95 shadow-[var(--shadow-elevated)] backdrop-blur-xl transition-all duration-200 xl:flex xl:flex-col',
+        'fixed right-4 top-[calc(1rem+72px)] z-30 hidden h-[calc(100vh-5.75rem)] w-[360px] shrink-0 rounded-xl border border-border/50 bg-card/95 shadow-[var(--shadow-elevated)] backdrop-blur-xl transition-all duration-200 xl:flex xl:flex-col',
         rightDrawerOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-6 opacity-0',
       )}
     >
       <div className="flex items-start justify-between gap-3 border-b border-border/70 px-4 py-4">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Workspace panel</p>
-          <h2 className="mt-1 text-base font-semibold text-foreground">Session detail rail</h2>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Keep context, activity, tools, outputs, and session controls visible while you chat.</p>
+          <h2 className="text-base font-semibold text-foreground">Session details</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Context, activity, tools, output, and session details in one place.</p>
         </div>
         <button
           type="button"
@@ -96,8 +95,8 @@ export function RightDrawer() {
         </button>
       </div>
 
-      <div className="border-b border-border/70 px-3 py-3">
-          <div className="grid grid-cols-5 gap-1 rounded-2xl border border-border/70 bg-background/60 p-1">
+      <div className="border-b border-border/60 px-3 py-3">
+          <div className="grid grid-cols-5 gap-1 rounded-2xl bg-background/50 p-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -105,7 +104,7 @@ export function RightDrawer() {
               onClick={() => setRightDrawerTab(tab.id)}
               className={cn(
                 'rounded-[1rem] px-2 py-2 text-xs font-medium text-muted-foreground transition',
-                rightDrawerTab === tab.id && 'bg-card text-foreground shadow-[var(--shadow-card)]',
+                rightDrawerTab === tab.id && 'bg-card/80 text-foreground',
               )}
             >
               {tab.label}

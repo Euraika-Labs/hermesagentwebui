@@ -3,6 +3,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Bot, Library, Puzzle, Search, Store, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CardSkeletonGrid } from '@/components/feedback/card-skeleton-grid';
+import { EmptyState, ErrorState } from '@/components/feedback/states';
 import { useMarketplaceSearch } from '@/features/marketplace/api/use-marketplace-search';
 
 const McpHub = lazy(() =>
@@ -19,22 +21,9 @@ type Tab = 'skills' | 'mcp-servers' | 'plugins';
 
 const tabs: { id: Tab; label: string; icon: typeof Library }[] = [
   { id: 'skills', label: 'Skills', icon: Library },
-  { id: 'mcp-servers', label: 'MCP Servers', icon: Bot },
+  { id: 'mcp-servers', label: 'MCP servers', icon: Bot },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
 ];
-
-function LoadingGrid() {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-40 animate-pulse rounded-2xl border border-border/70 bg-card/60"
-        />
-      ))}
-    </div>
-  );
-}
 
 export function MarketplaceScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('skills');
@@ -67,7 +56,7 @@ export function MarketplaceScreen() {
           <div>
             <h1 className="text-2xl font-semibold">Marketplace</h1>
             <p className="text-sm text-muted-foreground">
-              Discover and install extensions
+              Discover skills, MCP servers, and plugins
             </p>
           </div>
         </div>
@@ -119,21 +108,21 @@ export function MarketplaceScreen() {
       {/* Search results */}
       {isSearching ? (
         <div className="space-y-6">
-          {searchQuery.isLoading ? <LoadingGrid /> : null}
+          {searchQuery.isLoading ? <CardSkeletonGrid /> : null}
 
           {searchQuery.isError ? (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-foreground">
-              Search failed.{' '}
-              {searchQuery.error instanceof Error
-                ? searchQuery.error.message
-                : 'Unknown error.'}
-            </div>
+            <ErrorState
+              title="Search failed"
+              error={searchQuery.error}
+              description="We could not load marketplace results right now. Try again in a moment."
+            />
           ) : null}
 
           {searchQuery.data && searchQuery.data.total === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/70 bg-card/60 p-5 text-sm text-muted-foreground">
-              No results found for &ldquo;{debouncedQuery}&rdquo;. Try a different search term.
-            </div>
+            <EmptyState
+              title="No marketplace results"
+              description={<>No results found for &ldquo;{debouncedQuery}&rdquo;. Try a different term or clear some filters.</>}
+            />
           ) : null}
 
           {searchQuery.data && searchQuery.data.skills.length > 0 ? (
@@ -229,7 +218,7 @@ export function MarketplaceScreen() {
 
       {/* Tab content (browse mode — not searching) */}
       {!isSearching ? (
-        <Suspense fallback={<LoadingGrid />}>
+        <Suspense fallback={<CardSkeletonGrid />}>
           {activeTab === 'skills' ? <SkillsScreen /> : null}
           {activeTab === 'mcp-servers' ? <McpHub /> : null}
           {activeTab === 'plugins' ? <PluginsScreen /> : null}

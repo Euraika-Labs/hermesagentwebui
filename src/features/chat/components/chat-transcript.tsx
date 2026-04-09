@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { AlertTriangle, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import type { ChatArtifact, ChatStreamEvent } from '@/lib/types/chat';
 import type { Message } from '@/lib/types/message';
 import { ApprovalCard } from '@/features/chat/components/approval-card';
 import { ArtifactCard } from '@/features/chat/components/artifact-card';
 import { MessageBubble } from '@/features/chat/components/message-bubble';
 import { ToolCard } from '@/features/chat/components/tool-card';
+import { EmptyState, ErrorState, LoadingState } from '@/components/feedback/states';
 import { StatusBadge } from '@/components/feedback/status-badge';
-
 function streamingLabel(events: ChatStreamEvent[]) {
   const lastPhase = [...events].reverse().find((event) => event.type === 'run.phase');
   if (lastPhase?.type === 'run.phase') return lastPhase.label;
@@ -74,26 +74,24 @@ export function ChatTranscript({
   return (
     <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
       {isLoading ? (
-        <div className="rounded-xl border border-border/70 bg-card/60 p-8 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
-          Loading conversation…
-        </div>
+        <LoadingState title="Loading chat…" description="Fetching messages, events, and artifacts for the active chat." />
       ) : null}
 
       {!isLoading && messages.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/70 bg-gradient-to-br from-primary/[0.06] to-accent/[0.03] p-8 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-2 text-foreground">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <p className="font-semibold">Start a conversation</p>
-          </div>
-          <p className="mt-3 max-w-2xl leading-7">
-            Research, plan, debug, or build. Runtime activity, approvals, sources, and generated outputs stay legible instead of being buried inside assistant prose.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <StatusBadge label="Chat-first" tone="accent" />
-            <StatusBadge label="Tool-aware" tone="success" />
-            <StatusBadge label="Approval-ready" tone="warning" />
-          </div>
-        </div>
+        <EmptyState
+          title="Start a chat"
+          description={
+            <>
+              Research, plan, debug, or build. Runtime activity, approvals, sources, and generated outputs stay legible instead of being buried inside assistant prose.
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge label="Chat-first" tone="accent" />
+                <StatusBadge label="Tool-aware" tone="success" />
+                <StatusBadge label="Approval-ready" tone="warning" />
+              </div>
+            </>
+          }
+          icon={<Sparkles className="h-4 w-4" />}
+        />
       ) : null}
 
       {(isStreaming || visibleEvents.length > 0) && !isLoading ? (
@@ -135,14 +133,7 @@ export function ChatTranscript({
           );
         }
         if (event.type === 'error') {
-          return (
-            <div key={`${event.type}-${index}`} className="rounded-lg border border-danger/30 bg-danger/10 p-4 text-sm text-foreground shadow-[var(--shadow-card)]">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-danger" />
-                <p>{event.message}</p>
-              </div>
-            </div>
-          );
+          return <ErrorState key={`${event.type}-${index}`} error={event.message} layout="banner" />;
         }
         return null;
       })}

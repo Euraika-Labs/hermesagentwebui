@@ -1,3 +1,4 @@
+import { EmptyState } from '@/components/feedback/states';
 import { describeApprovalPolicy, describeCapabilityScope, describeRiskLevel } from '@/lib/presentation/capability-labels';
 import type { ToolInventoryItem } from '@/lib/types/extension';
 
@@ -21,7 +22,13 @@ export function ToolInventory({ tools }: { tools: ToolInventoryItem[] }) {
           <p className="mt-3 text-xs text-muted-foreground">{describeCapabilityScope(tool.scope)}</p>
         </div>
       ))}
-      {tools.length === 0 ? <p className="text-sm text-muted-foreground">No callable tools discovered from current integrations.</p> : null}
+      {tools.length === 0 ? (
+        <EmptyState
+          layout="banner"
+          title="No tools available"
+          description="No tools are currently exposed by the active integrations for this profile and chat context."
+        />
+      ) : null}
     </div>
   );
 }

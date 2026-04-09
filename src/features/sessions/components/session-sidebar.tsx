@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Clock3, GitBranch, Pin, Play, Plus } from 'lucide-react';
+import { EmptyState, LoadingState } from '@/components/feedback/states';
 import { SessionSearch } from '@/features/sessions/components/session-search';
 import {
   SESSION_SOURCES,
@@ -95,8 +96,8 @@ export function SessionSidebar({
 
   return (
     <aside className="flex h-full max-h-full flex-col overflow-hidden rounded-xl border border-border/70 bg-card/60 shadow-[var(--shadow-soft)]">
-      <div className="border-b border-border/70 p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-label text-muted-foreground">Workspace</p>
+      <div className="border-b border-border/60 p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-label text-muted-foreground">Chats</p>
         <div className="rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary))/0.16,hsl(var(--accent))/0.12)] p-1">
           <button
             type="button"
@@ -107,35 +108,15 @@ export function SessionSidebar({
             New chat
           </button>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl border border-border/70 bg-background/60 px-2 py-2.5">
-            <p className="text-2xs uppercase tracking-label text-muted-foreground">All</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{filteredSessions.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border/70 bg-background/60 px-2 py-2.5">
-            <p className="text-2xs uppercase tracking-label text-muted-foreground">Pinned</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{pinnedSessions.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border/70 bg-background/60 px-2 py-2.5">
-            <p className="text-2xs uppercase tracking-label text-muted-foreground">Archived</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{archivedSessions.length}</p>
-          </div>
-        </div>
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">
+          {filteredSessions.length} chats · {pinnedSessions.length} pinned · {archivedSessions.length} archived
+        </p>
       </div>
       <SessionSearch value={search} onChange={onSearchChange} />
       {showFilter ? (
         <div className="border-b border-border/70 px-3 pb-3">
-          <div className="mb-1.5 flex items-center justify-between px-1 text-2xs font-semibold uppercase tracking-label text-muted-foreground">
-            <span>Source</span>
-            {sourceFilter !== 'all' ? (
-              <button
-                type="button"
-                onClick={() => setSourceFilter('all')}
-                className="text-2xs font-medium text-primary hover:underline"
-              >
-                Clear
-              </button>
-            ) : null}
+          <div className="mb-1.5 px-1 text-2xs font-semibold uppercase tracking-label text-muted-foreground">
+            Source
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -176,11 +157,15 @@ export function SessionSidebar({
         </div>
       ) : null}
       <div className="flex-1 space-y-4 overflow-y-auto p-3">
-        {isLoading ? <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">Loading sessions…</div> : null}
+        {isLoading ? (
+          <LoadingState layout="banner" title="Loading chats…" />
+        ) : null}
         {!isLoading && filteredSessions.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
-            {sourceFilter === 'all' ? 'No sessions match your search.' : `No ${getSourceMeta(sourceFilter).label} sessions.`}
-          </div>
+          <EmptyState
+            layout="banner"
+            title={sourceFilter === 'all' ? 'No chats found' : `No ${getSourceMeta(sourceFilter).label} chats`}
+            description={sourceFilter === 'all' ? 'Try a different search term or start a new chat.' : 'Change the source filter or start a new chat.'}
+          />
         ) : null}
         {groups.map((group) => (
           <div key={group.label} className="space-y-2">
@@ -198,32 +183,24 @@ export function SessionSidebar({
                   onClick={() => onSelectSession(session.id)}
                   aria-label={/\(fork\)/i.test(session.title) && selectedSessionId !== session.id ? session.title : `Open session ${session.id}`}
                   className={cn(
-                    'w-full rounded-lg border px-4 py-3 text-left transition',
+                    'w-full rounded-xl border px-4 py-3 text-left transition',
                     selectedSessionId === session.id
-                      ? 'border-primary/20 bg-primary/8'
-                      : 'border-border/70 bg-background/80 hover:border-border hover:bg-card',
+                      ? 'border-primary/15 bg-primary/6'
+                      : 'border-border/60 bg-background/70 hover:border-border/70 hover:bg-card/50',
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p aria-hidden="true" className="truncate text-sm font-semibold text-foreground">{session.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p aria-hidden="true" className="truncate text-sm font-semibold text-foreground">{session.title}</p>
+                        {session.pinned ? <Pin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : null}
+                        {session.parentSessionId ? <GitBranch className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : null}
+                      </div>
                       <p aria-hidden="true" className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{previewText(session.preview)}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <SessionSourceBadge source={sessionSource(session)} />
-                      {session.pinned ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-3xs uppercase tracking-label text-muted-foreground">
-                          <Pin className="h-3 w-3" />
-                          Pinned
-                        </span>
-                      ) : null}
-                      {session.parentSessionId ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-border/70 px-2 py-0.5 text-3xs uppercase tracking-label text-muted-foreground">
-                          <GitBranch className="h-3 w-3" />
-                          Fork
-                        </span>
-                      ) : null}
-                      {canResume ? (
+                      {canResume && selectedSessionId === session.id ? (
                         <span
                           role="button"
                           tabIndex={0}
@@ -252,7 +229,7 @@ export function SessionSidebar({
                       <Clock3 className="h-3.5 w-3.5" />
                       {formatUpdatedAt(session.updatedAt)}
                     </span>
-                    {session.workspaceLabel ? <span>{session.workspaceLabel}</span> : null}
+                    {session.workspaceLabel && selectedSessionId === session.id ? <span>{session.workspaceLabel}</span> : null}
                   </div>
                 </button>
               );
