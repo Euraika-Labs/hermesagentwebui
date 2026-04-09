@@ -17,11 +17,13 @@ export function ChatComposer({
   disabled,
   statusNote,
   chips = [],
+  starterPrompts = [],
   onSend,
 }: {
   disabled?: boolean;
   statusNote?: string;
   chips?: ComposerChip[];
+  starterPrompts?: string[];
   onSend: (message: string, attachmentIds?: string[]) => Promise<void> | void;
 }) {
   const [value, setValue] = useState('');
@@ -96,6 +98,21 @@ export function ChatComposer({
           <div className="mb-3 flex flex-wrap gap-2">
             {attachments.map((attachment) => (
               <AttachmentChip key={attachment.id} attachment={attachment} onRemove={(attachmentId) => setAttachments((current) => current.filter((item) => item.id !== attachmentId))} />
+            ))}
+          </div>
+        ) : null}
+
+        {!value.trim() && attachments.length === 0 && starterPrompts.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {starterPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => setValue(prompt)}
+                className="rounded-full border border-border/70 bg-background/70 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-card"
+              >
+                {prompt}
+              </button>
             ))}
           </div>
         ) : null}

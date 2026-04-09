@@ -120,6 +120,11 @@ export function ChatScreen() {
       : runtimeInstalled
         ? 'Runtime is detected but the API is unreachable, so sending is paused until connectivity returns.'
         : 'Runtime was not detected. The UI can still show saved local state and explicit fallback labels.';
+  const starterPrompts = [
+    'Summarize this context and give me the best next step',
+    'Help me turn the current task into an implementation plan',
+    'Review the current context and point out risks or open questions',
+  ];
 
   const handleOpenSession = (sessionId: string) => {
     setComposerError(null);
@@ -319,7 +324,7 @@ export function ChatScreen() {
           ) : null}
           {composerError ? <div className="mx-4 mt-4"><ErrorState error={composerError} layout="banner" /></div> : null}
           {settingsError ? <div className="mx-4 mt-4"><ErrorState error={settingsError} layout="banner" /></div> : null}
-          <ChatComposer disabled={chatStream.isPending || (runtimeUnavailable && !mockMode)} statusNote={runtimeUnavailable && !mockMode ? 'Runtime offline — sending is paused until it reconnects.' : mockMode ? 'Mock mode active · Enter to send · Shift+Enter for newline · drag files to attach.' : 'Enter to send · Shift+Enter for newline · drag files to attach.'} chips={composerChips} onSend={handleSend} />
+          <ChatComposer disabled={chatStream.isPending || (runtimeUnavailable && !mockMode)} statusNote={runtimeUnavailable && !mockMode ? 'Runtime offline — sending is paused until it reconnects.' : mockMode ? 'Mock mode active · Enter to send · Shift+Enter for newline · drag files to attach.' : 'Enter to send · Shift+Enter for newline · drag files to attach.'} chips={composerChips} starterPrompts={messages.length === 0 ? starterPrompts : []} onSend={handleSend} />
 
         </section>
       </div>

@@ -72,27 +72,26 @@ export function ChatHeader({
           ) : null}
 
           {!hasMessages ? (
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="rounded-lg border border-border/60 bg-background/55 p-3.5">
-                <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Skills in this chat</p>
-                {visibleLoadedSkills.length ? (
-                  <div className="mt-2 space-y-2">
-                    <p className="text-sm font-semibold text-foreground">
-                      {visibleLoadedSkills.length} skill{visibleLoadedSkills.length === 1 ? '' : 's'} added
-                    </p>
-                    <p className="text-xs leading-5 text-muted-foreground">
+            <div className="rounded-lg border border-border/60 bg-background/55 p-3.5">
+              <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Ready to start</p>
+              <div className="mt-2 grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Skills in this chat</p>
+                  {visibleLoadedSkills.length ? (
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {visibleLoadedSkills.slice(0, 2).join(', ')}
                       {visibleLoadedSkills.length > 2 ? ` +${visibleLoadedSkills.length - 2} more` : ''}
                     </p>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">No skills added to this chat yet. Open Skills to load one when you need reusable instructions or context.</p>
-                )}
-              </div>
-              <div className="min-w-[220px] rounded-lg border border-border/60 bg-background/55 p-3.5">
-                <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Chat status</p>
-                <p className="mt-2 text-sm font-semibold text-foreground">{isPersisted ? 'Saved chat' : 'New chat'}</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Model · {settings.model || 'Default'}</p>
+                  ) : (
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">No skills added yet. Open Skills when you want reusable instructions or context.</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Current setup</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {isPersisted ? 'Saved chat' : 'New chat'} · Model {settings.model || 'Default'}
+                  </p>
+                </div>
               </div>
             </div>
           ) : null}
