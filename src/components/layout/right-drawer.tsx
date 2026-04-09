@@ -15,22 +15,48 @@ import { governanceTone, humanizeStatus, riskTone, type RiskLevel } from '@/lib/
 import { cn } from '@/lib/utils';
 
 const tabs: Array<{ id: RightDrawerTab; label: string }> = [
-  { id: 'context', label: 'Context' },
+  { id: 'context', label: 'Overview' },
   { id: 'activity', label: 'Activity' },
   { id: 'tools', label: 'Tools' },
   { id: 'output', label: 'Output' },
-  { id: 'session', label: 'Session' },
+  { id: 'session', label: 'Thread' },
 ];
+
+const tabDescriptions: Record<RightDrawerTab, string> = {
+  context: 'Current context, loaded skills, and memory that shape the next reply.',
+  activity: 'What the agent is doing right now, including approvals and recent events.',
+  tools: 'Which tools and runtime surfaces are active in this session.',
+  output: 'Artifacts and sources emitted while the run unfolds.',
+  session: 'Conversation metadata and thread-level settings.',
+};
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl bg-background/45 p-4">
+    <section className="space-y-3 rounded-2xl border border-border/50 bg-background/35 p-4">
       <div>
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p> : null}
       </div>
       {children}
     </section>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card/50 px-3 py-3">
+      <p className="text-2xs uppercase tracking-label text-muted-foreground">{label}</p>
+      <div className="mt-2 text-sm font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function KeyValueRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/50 px-3 py-2.5 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <div className="text-right text-foreground">{value}</div>
+    </div>
   );
 }
 
@@ -76,14 +102,14 @@ export function RightDrawer() {
   return (
     <aside
       className={cn(
-        'fixed right-4 top-[calc(1rem+72px)] z-30 hidden h-[calc(100vh-5.75rem)] w-[360px] shrink-0 rounded-xl border border-border/50 bg-card/95 shadow-[var(--shadow-elevated)] backdrop-blur-xl transition-all duration-200 xl:flex xl:flex-col',
+        'fixed inset-x-3 bottom-3 z-30 flex max-h-[70vh] min-h-[320px] flex-col rounded-xl border border-border/50 bg-card/95 shadow-[var(--shadow-elevated)] backdrop-blur-xl transition-all duration-200 xl:inset-x-auto xl:bottom-auto xl:right-4 xl:top-[calc(1rem+72px)] xl:h-[calc(100vh-5.75rem)] xl:max-h-none xl:w-[360px]',
         rightDrawerOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-6 opacity-0',
       )}
     >
       <div className="flex items-start justify-between gap-3 border-b border-border/70 px-4 py-4">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Session details</h2>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Context, activity, tools, output, and session details in one place.</p>
+          <h2 className="text-base font-semibold text-foreground">Inspector</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{tabDescriptions[rightDrawerTab]}</p>
         </div>
         <button
           type="button"
@@ -116,26 +142,21 @@ export function RightDrawer() {
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {rightDrawerTab === 'context' ? (
           <div className="space-y-4">
-            <Section title="Live context stack" description="What the agent is carrying into the current session right now.">
-              <div className="flex flex-wrap gap-2">
-                <StatusBadge label={contextQuery.data?.activeProfileId ?? runtimeQuery.data?.activeProfile ?? 'default'} tone="accent" />
-                <StatusBadge label={contextQuery.data?.memoryMode ?? sessionQuery.data?.settings.memoryMode ?? 'standard'} tone="muted" />
-                <StatusBadge label={contextQuery.data?.policyPreset ?? sessionQuery.data?.settings.policyPreset ?? 'safe-chat'} tone="warning" />
+            <Section title="Current context" description="The main ingredients shaping the next answer.">
+              <div className="grid grid-cols-2 gap-3">
+                <SummaryMetric label="Profile" value={contextQuery.data?.activeProfileId ?? runtimeQuery.data?.activeProfile ?? 'default'} />
+                <SummaryMetric label="Memory" value={contextQuery.data?.memoryMode ?? sessionQuery.data?.settings.memoryMode ?? 'standard'} />
+                <SummaryMetric label="Policy" value={contextQuery.data?.policyPreset ?? sessionQuery.data?.settings.policyPreset ?? 'safe-chat'} />
+                <SummaryMetric label="Skills" value={skillIds.length || 'None'} />
               </div>
-              <div className="grid gap-3 text-sm text-muted-foreground">
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Session</p>
-                  <p className="mt-2 font-medium text-foreground">{contextQuery.data?.activeSessionTitle ?? sessionQuery.data?.title ?? 'No active session'}</p>
-                  <p className="mt-1 text-xs leading-5">{contextQuery.data?.activeSessionPreview ?? sessionQuery.data?.preview ?? 'Start chatting to build a richer working context.'}</p>
-                </div>
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Memory profile</p>
-                  <p className="mt-2 text-xs leading-5">User memory snippets: {contextQuery.data?.userMemory.length ?? 0} · Agent memory snippets: {contextQuery.data?.agentMemory.length ?? 0}</p>
-                </div>
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-3">
+                <p className="text-2xs font-semibold uppercase tracking-label text-muted-foreground">Active thread</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">{contextQuery.data?.activeSessionTitle ?? sessionQuery.data?.title ?? 'No active session'}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{contextQuery.data?.activeSessionPreview ?? sessionQuery.data?.preview ?? 'Start chatting to build a richer working context.'}</p>
               </div>
             </Section>
 
-            <Section title="Loaded skills" description="Skills attached to the current session or recently injected into context.">
+            <Section title="Loaded skills" description="Reusable procedures and references already attached to this conversation.">
               {skillIds.length ? (
                 <div className="flex flex-wrap gap-2">
                   {skillIds.map((skillId) => (
@@ -143,14 +164,18 @@ export function RightDrawer() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No explicit skills are attached yet. Open Skills to add reusable procedures and references.</p>
+                <p className="text-sm text-muted-foreground">No explicit skills are attached yet. Open Skills when you want reusable procedures or references.</p>
               )}
             </Section>
 
-            <Section title="Active memory snippets" description="Compact recall currently available to the agent.">
+            <Section title="Memory snippets" description="Compact recall currently visible to the agent.">
+              <div className="grid grid-cols-2 gap-3">
+                <SummaryMetric label="User memory" value={contextQuery.data?.userMemory.length ?? 0} />
+                <SummaryMetric label="Agent memory" value={contextQuery.data?.agentMemory.length ?? 0} />
+              </div>
               <div className="space-y-2">
-                {[...(contextQuery.data?.userMemory ?? []), ...(contextQuery.data?.agentMemory ?? [])].slice(0, 6).map((entry, index) => (
-                  <div key={`${entry}-${index}`} className="rounded-2xl border border-border/70 bg-card/60 p-3 text-sm leading-6 text-muted-foreground">
+                {[...(contextQuery.data?.userMemory ?? []), ...(contextQuery.data?.agentMemory ?? [])].slice(0, 4).map((entry, index) => (
+                  <div key={`${entry}-${index}`} className="rounded-2xl border border-border/60 bg-card/50 p-3 text-sm leading-6 text-muted-foreground">
                     {entry}
                   </div>
                 ))}
@@ -164,18 +189,15 @@ export function RightDrawer() {
 
         {rightDrawerTab === 'activity' ? (
           <div className="space-y-4">
-            <Section title="Run overview" description="Current execution phase, approvals, and event volume.">
+            <Section title="What is happening now" description="Use this tab when you want the agent's live status without leaving the chat.">
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs uppercase tracking-label text-muted-foreground">Phase</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">{latestPhase?.label ?? 'Idle'}</p>
-                </div>
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs uppercase tracking-label text-muted-foreground">Approvals</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">{approvalEvents.length} waiting</p>
-                </div>
+                <SummaryMetric label="Phase" value={latestPhase?.label ?? 'Idle'} />
+                <SummaryMetric label="Approvals" value={approvalEvents.length ? `${approvalEvents.length} waiting` : 'None'} />
               </div>
-              {latestPhase ? <StatusBadge label={latestPhase.phase} tone="accent" /> : <StatusBadge label="No active run" tone="muted" />}
+              <div className="flex flex-wrap gap-2">
+                {latestPhase ? <StatusBadge label={latestPhase.phase} tone="accent" /> : <StatusBadge label="No active run" tone="muted" />}
+                <StatusBadge label={`${allEvents.length} events`} tone="muted" />
+              </div>
             </Section>
 
             {approvalEvents.length ? (
@@ -278,14 +300,8 @@ export function RightDrawer() {
           <div className="space-y-4">
             <Section title="Tool posture" description="What kinds of actions the current run is using and how risky they are.">
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs uppercase tracking-label text-muted-foreground">Distinct tools</p>
-                  <p className="mt-2 text-lg font-semibold text-foreground">{toolNames.length}</p>
-                </div>
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs uppercase tracking-label text-muted-foreground">Artifacts</p>
-                  <p className="mt-2 text-lg font-semibold text-foreground">{displayedArtifacts.length}</p>
-                </div>
+                <SummaryMetric label="Distinct tools" value={toolNames.length} />
+                <SummaryMetric label="Artifacts" value={displayedArtifacts.length} />
               </div>
               <div className="flex flex-wrap gap-2">
                 {toolRiskLevels.length ? toolRiskLevels.map((risk) => <StatusBadge key={risk} label={`${risk} risk`} tone={riskTone(risk)} />) : <StatusBadge label="Read-only so far" tone="muted" />}
@@ -343,62 +359,43 @@ export function RightDrawer() {
 
         {rightDrawerTab === 'session' ? (
           <div className="space-y-4">
-            <Section title="Session summary" description="Core metadata for the active conversation thread.">
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <p className="text-2xs uppercase tracking-label text-muted-foreground">Title</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">{sessionQuery.data?.title ?? 'Unsaved chat'}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                    <p className="text-2xs uppercase tracking-label text-muted-foreground">Messages</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{sessionQuery.data?.messages.length ?? 0}</p>
-                  </div>
-                  <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                    <p className="text-2xs uppercase tracking-label text-muted-foreground">Updated</p>
-                    <p className="mt-2 text-sm font-semibold text-foreground">{sessionQuery.data?.updatedAt ? new Date(sessionQuery.data.updatedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not saved'}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge label={sessionQuery.data?.settings.model ?? runtimeQuery.data?.modelDefault ?? 'default model'} tone="accent" icon={<Bot className="h-3.5 w-3.5 text-accent" />} />
-                  <StatusBadge label={sessionQuery.data?.settings.provider ?? runtimeQuery.data?.provider ?? 'provider'} tone="success" />
-                  <StatusBadge label={sessionQuery.data?.archived ? 'archived' : 'active'} tone={sessionQuery.data?.archived ? 'muted' : 'success'} />
-                </div>
+            <Section title="Thread summary" description="Core metadata for the active conversation thread.">
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-3">
+                <p className="text-2xs uppercase tracking-label text-muted-foreground">Title</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">{sessionQuery.data?.title ?? 'Unsaved chat'}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <SummaryMetric label="Messages" value={sessionQuery.data?.messages.length ?? 0} />
+                <SummaryMetric
+                  label="Updated"
+                  value={sessionQuery.data?.updatedAt ? new Date(sessionQuery.data.updatedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not saved'}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusBadge label={sessionQuery.data?.settings.model ?? runtimeQuery.data?.modelDefault ?? 'default model'} tone="accent" icon={<Bot className="h-3.5 w-3.5 text-accent" />} />
+                <StatusBadge label={sessionQuery.data?.settings.provider ?? runtimeQuery.data?.provider ?? 'provider'} tone="success" />
+                <StatusBadge label={sessionQuery.data?.archived ? 'archived' : 'active'} tone={sessionQuery.data?.archived ? 'muted' : 'success'} />
               </div>
             </Section>
 
-            <Section title="Session settings" description="Runtime behavior selected for this conversation.">
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/60 px-3 py-2.5">
-                  <span>Policy preset</span>
-                  <StatusBadge label={sessionQuery.data?.settings.policyPreset ?? 'safe-chat'} tone="warning" />
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/60 px-3 py-2.5">
-                  <span>Memory mode</span>
-                  <StatusBadge label={sessionQuery.data?.settings.memoryMode ?? 'standard'} tone="muted" />
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/60 px-3 py-2.5">
-                  <span>Artifacts</span>
-                  <StatusBadge label={`${displayedArtifacts.length}`} tone="accent" icon={<FileText className="h-3.5 w-3.5 text-accent" />} />
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/60 px-3 py-2.5">
-                  <span>Sources</span>
-                  <StatusBadge label={`${sourceEvents.length}`} tone="success" icon={<Search className="h-3.5 w-3.5 text-success" />} />
-                </div>
-              </div>
-            </Section>
-
-            <Section title="Workspace linkage" description="How this session relates to the broader workspace.">
+            <Section title="Thread settings" description="Runtime behavior selected for this conversation.">
               <div className="space-y-2">
-                <div className="rounded-2xl border border-border/70 bg-card/60 p-3">
-                  <div className="flex items-center gap-2 text-foreground">
-                    <Layers3 className="h-4 w-4 text-accent" />
-                    <p className="text-sm font-semibold">{sessionQuery.data?.parentSessionId ? 'Forked thread' : 'Primary thread'}</p>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    {sessionQuery.data?.parentSessionId ? `Derived from ${sessionQuery.data.parentSessionId}. Forking preserves the old run while letting you branch.` : 'This session is the main line for its current workspace context.'}
-                  </p>
+                <KeyValueRow label="Policy preset" value={<StatusBadge label={sessionQuery.data?.settings.policyPreset ?? 'safe-chat'} tone="warning" />} />
+                <KeyValueRow label="Memory mode" value={<StatusBadge label={sessionQuery.data?.settings.memoryMode ?? 'standard'} tone="muted" />} />
+                <KeyValueRow label="Artifacts" value={<StatusBadge label={`${displayedArtifacts.length}`} tone="accent" icon={<FileText className="h-3.5 w-3.5 text-accent" />} />} />
+                <KeyValueRow label="Sources" value={<StatusBadge label={`${sourceEvents.length}`} tone="success" icon={<Search className="h-3.5 w-3.5 text-success" />} />} />
+              </div>
+            </Section>
+
+            <Section title="Workspace linkage" description="How this thread relates to the broader workspace.">
+              <div className="rounded-2xl border border-border/60 bg-card/50 p-3">
+                <div className="flex items-center gap-2 text-foreground">
+                  <Layers3 className="h-4 w-4 text-accent" />
+                  <p className="text-sm font-semibold">{sessionQuery.data?.parentSessionId ? 'Forked thread' : 'Primary thread'}</p>
                 </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {sessionQuery.data?.parentSessionId ? `Derived from ${sessionQuery.data.parentSessionId}. Forking preserves the old run while letting you branch.` : 'This session is the main line for its current workspace context.'}
+                </p>
               </div>
             </Section>
           </div>

@@ -17,11 +17,13 @@ export function ChatComposer({
   disabled,
   statusNote,
   chips = [],
+  starterPrompts = [],
   onSend,
 }: {
   disabled?: boolean;
   statusNote?: string;
   chips?: ComposerChip[];
+  starterPrompts?: string[];
   onSend: (message: string, attachmentIds?: string[]) => Promise<void> | void;
 }) {
   const [value, setValue] = useState('');
@@ -29,6 +31,7 @@ export function ChatComposer({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadAttachment = useUploadAttachment();
+  const visibleChips = advancedOpen ? chips : chips.slice(0, 3);
 
   const handleFile = async (file: File) => {
     const attachment = await uploadAttachment.mutateAsync(file);
@@ -60,33 +63,36 @@ export function ChatComposer({
         }}
       >
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          {chips.map((chip) => (
+          {visibleChips.map((chip) => (
             <span key={chip.key} className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-foreground">
               {chip.label}
             </span>
           ))}
+          {chips.length > visibleChips.length ? <span className="text-xs text-muted-foreground">+{chips.length - visibleChips.length} more in details</span> : null}
           <button
             type="button"
             onClick={() => setAdvancedOpen((current) => !current)}
+            aria-expanded={advancedOpen}
+            aria-controls="chat-composer-details"
             className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground"
           >
-            Advanced
+            Details
             <ChevronDown className={`h-3.5 w-3.5 transition ${advancedOpen ? 'rotate-180' : ''}`} />
           </button>
         </div>
 
         {advancedOpen ? (
-          <div className="mb-3 grid gap-3 rounded-lg border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground md:grid-cols-3">
+          <div id="chat-composer-details" className="mb-3 grid gap-3 rounded-lg border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground md:grid-cols-3">
             <div className="rounded-xl border border-border/70 bg-card/60 p-3">
-             <p className="font-semibold text-foreground">Prompt focus</p>
-              <p className="mt-1">The main prompt stays dominant. Lower-frequency context and controls live here so the composer stays calm.</p>
+              <p className="font-semibold text-foreground">Prompt first</p>
+              <p className="mt-1">Keep the ask short and outcome-oriented. Pan can gather tools, files, and approvals as the run unfolds.</p>
             </div>
             <div className="rounded-xl border border-border/70 bg-card/60 p-3">
-             <p className="font-semibold text-foreground">Visible trust cues</p>
-              <p className="mt-1">Model, mode, tools, files, and profile remain visible before you send anything.</p>
+              <p className="font-semibold text-foreground">Visible context</p>
+              <p className="mt-1">Model, mode, tools, files, and profile stay inspectable without turning the composer into a dashboard.</p>
             </div>
             <div className="rounded-xl border border-border/70 bg-card/60 p-3">
-             <p className="font-semibold text-foreground">Attachments</p>
+              <p className="font-semibold text-foreground">Attachments</p>
               <p className="mt-1">Drop a file anywhere on the composer or use Attach to add screenshots, notes, and code snippets.</p>
             </div>
           </div>
@@ -100,6 +106,24 @@ export function ChatComposer({
           </div>
         ) : null}
 
+        {!value.trim() && attachments.length === 0 && starterPrompts.length > 0 ? (
+          <div className="mb-3 rounded-xl border border-border/70 bg-background/60 p-3">
+            <p className="text-xs font-semibold uppercase tracking-label text-muted-foreground">Try one of these</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {starterPrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => setValue(prompt)}
+                  className="rounded-2xl border border-border/70 bg-background/80 px-3 py-2 text-left text-xs font-medium leading-5 text-foreground transition hover:bg-card"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <textarea
           value={value}
           onChange={(event) => setValue(event.target.value)}
@@ -109,7 +133,7 @@ export function ChatComposer({
               void handleSubmit(event as unknown as FormEvent<HTMLFormElement>);
             }
           }}
-          placeholder={disabled ? 'Agent is unavailable right now.' : 'Message Pan…'}
+          placeholder={disabled ? 'Agent is unavailable right now.' : 'Ask Pan to research, plan, debug, or build…'}
           className="min-h-14 w-full resize-none bg-transparent px-3 text-sm leading-7 outline-none placeholder:text-muted-foreground"
           disabled={disabled}
         />
@@ -137,11 +161,11 @@ export function ChatComposer({
           <div className="flex flex-wrap items-center gap-2">
             <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
               <Shield className="h-3.5 w-3.5" />
-              Trust cues stay visible
+              Context stays visible
             </span>
             <span className="hidden items-center gap-1 text-xs text-muted-foreground md:inline-flex">
               <Wrench className="h-3.5 w-3.5" />
-              Tools stay explicit
+              Tools stay inspectable
             </span>
             <button
               type="submit"

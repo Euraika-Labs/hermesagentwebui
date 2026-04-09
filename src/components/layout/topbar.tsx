@@ -123,7 +123,7 @@ export function Topbar() {
             type="button"
             onClick={() => openRightDrawer('activity')}
             className="rounded-2xl border border-border/70 bg-background/80 p-2.5 text-muted-foreground shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-card"
-            aria-label="Open workspace details"
+            aria-label="Open inspector"
           >
             <PanelRightOpen className="h-4 w-4" />
           </button>
