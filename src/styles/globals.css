@@ -30,8 +30,8 @@
   --muted-foreground: 220 15% 38%;    /* Improved contrast */
 
   /* ── Borders & Inputs ── */
-  --border: 220 18% 78%;               /* Stronger light mode borders */
-  --input: 220 18% 78%;
+  --border: 220 18% 82%;               /* Slightly softer light mode borders */
+  --input: 220 18% 82%;
   --ring: 206 84% 22%;                /* #094668 Euraika Teal */
 
   /* ── Semantic (§6.11) ── */
@@ -43,8 +43,8 @@
   /* ── Shadows ── */
   --shadow-color: 209 85% 18%;
   --shadow-soft: 0 20px 60px -28px hsl(var(--shadow-color) / 0.10);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.08);
   --shadow-shell: 0 36px 100px -48px hsl(var(--shadow-color) / 0.12);
 
   /* ── Radius (§8: 8px base) ── */
@@ -80,7 +80,7 @@
   --muted: 211 13% 22%;               /* ~Dark border zone */
   --muted-foreground: 216 9% 64%;     /* #9CA3AF Light Gray */
 
-  --border: 216 16% 27%;              /* #374151 Dark Border */
+  --border: 216 14% 24%;              /* Softer dark border */
   --input: 216 16% 27%;
   --ring: 175 25% 43%;                /* #558B82 Mist */
 
@@ -91,8 +91,8 @@
 
   --shadow-color: 240 30% 3%;
   --shadow-soft: 0 28px 80px -34px hsl(var(--shadow-color) / 0.58);
-  --shadow-card: 0 18px 42px -26px hsl(var(--shadow-color) / 0.54);
-  --shadow-elevated: 0 36px 110px -40px hsl(var(--shadow-color) / 0.72);
+  --shadow-card: 0 14px 32px -24px hsl(var(--shadow-color) / 0.4);
+  --shadow-elevated: 0 24px 80px -36px hsl(var(--shadow-color) / 0.56);
   --shadow-shell: 0 44px 140px -56px hsl(var(--shadow-color) / 0.78);
 
   --euraika-flow-gradient: linear-gradient(35deg, #094668 0%, #558B82 55%, #D2B416 100%);
@@ -123,8 +123,8 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at top, hsl(var(--primary) / 0.04), transparent 26%);
-  opacity: 0.8;
+  background: radial-gradient(circle at top, hsl(var(--primary) / 0.03), transparent 22%);
+  opacity: 0.55;
 }
 
 ::selection {

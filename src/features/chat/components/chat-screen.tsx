@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ApiError } from '@/lib/api/client';
@@ -11,6 +11,7 @@ import { useUIStore } from '@/lib/store/ui-store';
 import { ChatComposer } from '@/features/chat/components/chat-composer';
 import { ChatHeader } from '@/features/chat/components/chat-header';
 import { ChatTranscript } from '@/features/chat/components/chat-transcript';
+import { DegradedState, ErrorState } from '@/components/feedback/states';
 import { useChatStream } from '@/features/chat/api/use-chat-stream';
 import {
   useArchiveSession,
@@ -297,29 +298,29 @@ export function ChatScreen() {
             onOpenArtifact={(artifactId) => selectArtifact(artifactId)}
           />
           {runtimeUnavailable && !mockMode ? (
-            <div className="mx-4 mb-0 rounded-lg border border-warning/30 bg-warning/10 px-4 py-4 text-sm text-foreground shadow-[var(--shadow-card)]">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 text-warning" />
-                  <div>
-                    <p className="font-semibold">Runtime API is currently unavailable</p>
-                    <p className="mt-1 text-muted-foreground">You can still inspect saved sessions, approvals, sources, and artifacts, but sending new messages is paused until the backend reconnects.</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+            <div className="mx-4 mb-0">
+              <DegradedState
+                layout="banner"
+                title="Runtime API is currently unavailable"
+                description="You can still inspect saved chats, approvals, sources, and artifacts, but sending new messages is paused until the backend reconnects."
+                primaryAction={
                   <button type="button" onClick={() => void runtimeQuery.refetch()} className="inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-background/80 px-3 py-2 text-sm font-medium text-foreground">
                     <RefreshCcw className="h-4 w-4" />
                     Retry runtime
                   </button>
+                }
+                secondaryAction={
                   <a href="/settings/health" className="rounded-2xl border border-border/70 bg-background/80 px-3 py-2 text-sm font-medium text-foreground">
                     Open diagnostics
                   </a>
-                </div>
-              </div>
+                }
+              />
             </div>
           ) : null}
-          {composerError || settingsError ? <div className="mx-4 mt-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-foreground shadow-[var(--shadow-card)]">{composerError || settingsError}</div> : null}
+          {composerError ? <div className="mx-4 mt-4"><ErrorState error={composerError} layout="banner" /></div> : null}
+          {settingsError ? <div className="mx-4 mt-4"><ErrorState error={settingsError} layout="banner" /></div> : null}
           <ChatComposer disabled={chatStream.isPending || (runtimeUnavailable && !mockMode)} statusNote={runtimeUnavailable && !mockMode ? 'Runtime offline — sending is paused until it reconnects.' : mockMode ? 'Mock mode active · Enter to send · Shift+Enter for newline · drag files to attach.' : 'Enter to send · Shift+Enter for newline · drag files to attach.'} chips={composerChips} onSend={handleSend} />
+
         </section>
       </div>
 
