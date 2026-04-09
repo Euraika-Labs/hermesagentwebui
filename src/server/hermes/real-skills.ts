@@ -87,6 +87,15 @@ function collectLinkedFiles(skillDir: string): import('@/lib/types/skill').Skill
   for (const group of groups) {
     const groupDir = path.join(skillDir, group);
     if (!fs.existsSync(groupDir)) continue;
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(groupDir);
+    } catch {
+      continue;
+    }
+    if (!stats.isDirectory()) {
+      continue;
+    }
     for (const entry of fs.readdirSync(groupDir, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
       results.push({
