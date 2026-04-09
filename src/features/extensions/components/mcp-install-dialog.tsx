@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import type { McpHubServer } from '@/server/hermes/hub-mcp';
 import { useInstallMcpServer } from '@/features/extensions/api/use-mcp-hub';
@@ -60,8 +60,6 @@ export function McpInstallDialog({ server, onClose }: McpInstallDialogProps) {
       setError(err instanceof Error ? err.message : 'Installation failed.');
     }
   }, [server, envValues, installMutation, handleClose]);
-
-  const maxStep = useMemo<1 | 2 | 3>(() => (hasEnvStep ? 3 : 3), [hasEnvStep]);
 
   const handleNext = useCallback(() => {
     if (step === 1) {

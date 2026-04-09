@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api/client';
-import type { McpHubServer, McpHubSearchResult } from '@/server/hermes/hub-mcp';
+import type { McpHubSearchResult } from '@/server/hermes/hub-mcp';
 
 type InstallPayload = {
   identifier: string;

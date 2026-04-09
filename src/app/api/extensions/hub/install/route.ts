@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { installHubMcpServer } from '@/server/hermes/hub-mcp';
 
-const IDENTIFIER_RE = /^[a-zA-Z0-9@][a-zA-Z0-9._\/-]*$/;
+const IDENTIFIER_RE = /^[a-zA-Z0-9@][a-zA-Z0-9._/-]*$/;
 
 export async function POST(request: Request) {
   try {
