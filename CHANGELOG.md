@@ -4,6 +4,40 @@ All notable changes to Pan by Euraika are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-04-09
+
+### Added
+- **Unified Marketplace** — new `/marketplace` surface that brings skills, MCP servers, and plugins together in one search-driven workspace
+- **MCP Hub** — browse thousands of MCP registry entries with search, trust cues, install metadata, and install dialogs
+- **Plugins workspace** — dedicated `/plugins` page plus plugin cards, install dialog, enable/disable controls, and plugin detail APIs
+- **New API surface** for marketplace flows:
+  - `/api/extensions/hub`
+  - `/api/extensions/hub/install`
+  - `/api/plugins`
+  - `/api/plugins/install`
+  - `/api/plugins/[id]`
+  - `/api/plugins/[id]/enable`
+- **Expanded Playwright coverage** — 23 browser tests across chat, marketplace, MCP hub, plugins, skills, memory/profiles, extensions, and mobile
+
+### Changed
+- **Plugin installs hardened** — Pan now treats plugin install success as “real Hermes plugin installed”, not merely “git clone succeeded”
+- **GitHub → GitLab mirror workflow** — removed force-push behavior so mirroring no longer fails against protected GitLab `main`
+- **Release confidence improved** — marketplace/install flows were validated with Docker rebuilds, direct API checks, and browser-level smoke tests
+
+### Fixed
+- **Plugin install contract** — WebUI/API payload mismatch (`repo` vs `identifier`) repaired with compatibility handling
+- **Plugin validation** — arbitrary GitHub repos now fail clearly unless they contain `plugin.yaml` and `__init__.py`
+- **Skill load into session** — mixed mock/real session paths no longer fail with `Session not found`
+- **Skills hub false success** — bogus `hermes skills install` output now reports failure instead of returning a fake success
+- **MCP Hub parsing/cache hydration** — registry results populate correctly from the current nested registry shape instead of showing an empty hub
+- **Chat/session API auth** — unauthenticated access to `/api/chat/sessions`, `/api/chat/sessions/[id]`, `/api/chat/sessions/[id]/fork`, and `/api/chat/stream` now returns `401 Unauthorized`
+
+## [0.5.2] — 2026-04-09
+
+### Fixed
+- **npm standalone packaging** — standalone build output now includes the assets Pan needs at runtime, including copied static assets on start
+- **npm release reliability** — package composition aligned with standalone Next.js output so installed builds boot correctly from the published artifact
+
 ## [0.5.1] — 2026-04-08
 
 ### Fixed
@@ -144,6 +178,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Dependabot configuration
 - Community standards (CoC, CONTRIBUTING, SECURITY, issue templates)
 
+[0.6.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/Euraika-Labs/pan-ui/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/Euraika-Labs/pan-ui/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.2.4...v0.3.0

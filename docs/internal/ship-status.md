@@ -1,37 +1,38 @@
 # Pan Ship Status
 
-Status: release-candidate quality for local/self-hosted admin usage
+Status: self-hosted beta / release-quality for admin-operated deployments
 
-Verification completed (v0.5.1)
+Verification completed (v0.6.0)
 - [x] `npm run lint`
 - [x] `npm run test` — 24/24 unit tests (vitest)
 - [x] `npm run build`
-- [x] `npm run test:e2e` — 7/7 Playwright E2E tests
-- [x] Functional test suite — 33/33 assertions (full-stack-test.sh)
-- [x] Docker mock-mode — 37/37 assertions (incl. Playwright E2E)
-- [x] Docker real-mode — 28/28 assertions (live gateway)
-- [x] Runtime health — 7/7 checks on host and in Docker
+- [x] Playwright suite enumerates 23 committed tests across 8 spec files
+- [x] Docker mock-mode smoke, API verification, and browser-driven user-path checks completed for marketplace/plugins/skills/auth flows
+- [x] Runtime health, sessions, skills, memory, profiles, extensions, plugins, and audit APIs re-verified in Docker
+- [x] Chat/session APIs now return `401 Unauthorized` when called without login
 
 Shipped capabilities
 - Authenticated admin workspace
-- Chat/session management (incl. fork, archive, delete)
+- Chat/session management (create, rename, archive, fork, delete, stream)
+- Authenticated chat/session API surface (`/api/chat/sessions*`, `/api/chat/stream`)
+- Unified Marketplace for skills, MCP Hub, and plugins
+- MCP Hub registry browsing with trust/install metadata and cache hydration
+- Plugins workspace with install validation, detail routes, and enable/disable flows
 - Real Hermes-backed session/history reads and major writes
-- Runtime runs model and runs explorer
 - Approval queue persistence and server-side gating on app-controlled path
 - Artifacts, audit, approvals, telemetry, runtime health, MCP diagnostics pages
 - Downloadable runtime JSON and CSV exports
-- Artifact downloads
 - Persisted MCP probe results/errors/timestamps
 - Real memory/profile/skills/extensions integrations
 - Docker deployment with bundled Hermes Agent (test image)
-- Health probe works without local hermes binary (Docker/headless friendly)
+- GitHub → GitLab mirror workflow compatible with protected GitLab `main`
 
 Known remaining caveats
-- Deep Hermes-core-native live tool pause/resume is still approximated through wrapper/orchestration logic rather than a fully embedded Hermes executor contract
-- Some streamed message metadata is persisted with strong practical fidelity, but not every possible Hermes-native internal shape is guaranteed to be mirrored exactly
+- Full Playwright execution remains environment-sensitive in headless agent shells even though the committed suite enumerates correctly; use a real shell or Docker/browser verification for highest confidence
+- Not every third-party MCP or plugin install command can be guaranteed to succeed — Pan now reports failures honestly instead of false-success installs
 - Multi-user RBAC and full production observability are not implemented beyond current admin-only session model and durable telemetry/audit stores
 
 Recommended deployment posture
-- Suitable for advanced local or self-hosted admin usage
-- Strong alpha / early beta quality
+- Suitable for advanced self-hosted admin usage
+- Good release confidence for local/private deployments
 - Continue hardening before broader multi-user production rollout

@@ -39,18 +39,16 @@ npx @euraika-labs/pan-ui service install
 This creates `~/.config/systemd/user/pan-ui.service`, enables it, starts it, and enables linger so the service survives logout.
 
 ```bash
-# Standard management
 systemctl --user status pan-ui
 systemctl --user restart pan-ui
 journalctl --user -u pan-ui -f
 
-# Remove
 npx pan-ui service remove
 ```
 
 ### Docker
 
-A test Dockerfile is provided at `tests/docker/Dockerfile.test`. It bundles the Hermes Agent binary, so all health checks pass inside the container.
+A test Dockerfile is provided at `tests/docker/Dockerfile.test`. It bundles the Hermes Agent binary and is the fastest way to get strong release confidence for Pan’s end-to-end behavior.
 
 ```bash
 # Build
@@ -72,7 +70,7 @@ docker run -p 3199:3000 \
 
 The image includes Python 3, PyYAML, and the Hermes Agent installed via `uv` from the Euraika-Labs fork at the pinned tag. The `hermes` binary is available at `/usr/local/bin/hermes`.
 
-> **Note:** A production-optimised multi-stage Dockerfile is not yet available. The test image is suitable for development and CI.
+> Note: A production-optimised multi-stage Dockerfile is still not included. The test image is suitable for development, CI, and release validation.
 
 ## Configuration
 
@@ -91,10 +89,11 @@ Pan looks for a `.env.local` file in its package directory. The setup wizard (`n
 
 ### Security notes for production-like environments
 
-- **Change the default password.** Run `npx pan-ui setup` and set a strong password.
-- **Set a session secret.** The wizard generates one automatically, but you can override `HERMES_WORKSPACE_SECRET` for reproducible deployments.
-- **Restrict network access.** Pan binds to `0.0.0.0` by default. Use a reverse proxy or firewall if exposing beyond localhost.
-- **Protect `~/.hermes`.** Pan reads profiles, memory, skills, and session data from this directory.
+- Change the default password. Run `npx pan-ui setup` and set a strong password.
+- Set a session secret. The wizard generates one automatically, but you can override `HERMES_WORKSPACE_SECRET` for reproducible deployments.
+- Restrict network access. Pan binds to `0.0.0.0` by default. Use a reverse proxy or firewall if exposing beyond localhost.
+- Protect `~/.hermes`. Pan reads profiles, memory, skills, and session data from this directory.
+- Chat/session APIs now require login and return `401 Unauthorized` when called without a valid auth cookie.
 
 ## Updating
 
@@ -107,3 +106,27 @@ Configuration persists in `.env.local` inside the package directory. If you're u
 ```bash
 systemctl --user restart pan-ui
 ```
+
+## GitHub → GitLab mirror
+
+The GitHub mirror workflow now uses normal pushes rather than force-pushing protected `main` on GitLab.
+
+Important rule:
+```bash
+git push gitlab "HEAD:${BRANCH}"
+git push gitlab "${GITHUB_REF}"
+```
+
+Do not use `--force` in the mirror job unless GitLab branch protection explicitly allows it.
+
+## Release-confidence workflow
+
+For Pan, the practical release-confidence sequence is:
+1. `npm run lint`
+2. `npm run test`
+3. `npm run build`
+4. Docker rebuild of `tests/docker/Dockerfile.test`
+5. direct API smoke checks against the running container
+6. browser smoke checks against the same container
+
+This catches install/auth/runtime regressions that green CI alone can miss.

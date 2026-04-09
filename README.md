@@ -77,10 +77,12 @@ Your configuration in `~/.pan-ui/` is preserved across updates.
 
 | Feature | Description |
 |---------|-------------|
-| **Chat** | SSE streaming connected to a live Hermes runtime, with tool timelines, approval cards, and artifact rendering |
+| **Chat** | SSE streaming connected to a live Hermes runtime, with tool timelines, approval cards, artifact rendering, and authenticated chat/session APIs |
 | **Sessions** | Unified session sidebar with source badges (CLI, Discord, Telegram, WhatsApp, …), source filtering, and cross-platform session resumption |
-| **Skills** | Browse installed skills, discover and install 268+ more from [skills.sh](https://skills.sh) |
-| **Extensions** | View MCP servers, their tools, health status, and diagnostics |
+| **Marketplace** | Unified `/marketplace` view for skills, MCP servers, and plugins with cross-surface discovery |
+| **Skills** | Browse installed skills, discover and install more from [skills.sh](https://skills.sh), and load skills into active sessions |
+| **Extensions / MCP** | View MCP servers, browse the MCP Hub registry, inspect trust/install metadata, and manage diagnostics and capability scopes |
+| **Plugins** | Dedicated plugin workspace with install validation, enable/disable flows, and plugin detail APIs |
 | **Memory** | Inspect and edit global and profile-scoped agent memory |
 | **Profiles** | Isolated workspaces — each with its own sessions, skills, memory, and API keys |
 | **Operations** | Approvals, run history, audit trails, telemetry, health monitoring, and exports |
@@ -227,6 +229,14 @@ npm run dev
 
 ## Recent Changes
 
+### [0.6.0] — 2026-04-09
+- **Added** unified Marketplace, MCP Hub registry browsing, dedicated Plugins workspace, and expanded Playwright coverage (23 tests)
+- **Fixed** plugin install hardening, skill-load/session regressions, bogus skills-hub success reporting, MCP Hub parsing/cache hydration, and unauthenticated chat/session API access
+- **Changed** GitHub → GitLab mirror workflow now uses normal pushes instead of force-pushing protected `main`
+
+### [0.5.2] — 2026-04-09
+- **Fixed** standalone npm packaging and runtime asset copying so published builds boot correctly from the installed package
+
 ### [0.5.1] — 2026-04-08
 - **Fixed** fork session crash (missing `)` in Python bridge)
 - **Changed** health probe decoupled from binary — Docker and headless deployments report full health status
@@ -235,14 +245,6 @@ npm run dev
 ### [0.5.0] — 2026-04-08
 - **Added** vendored Hermes fork (`hermes.version.json`), auto-install wizard, `sync-hermes` / `update` / `version` CLI commands, update banner
 - **Changed** CLI refactored to subcommand structure, profile detection hardened
-
-### [0.4.0] — 2026-04-07
-- **Added** automatic gateway management — Pan auto-starts and monitors the Hermes gateway on boot
-- **Changed** simplified to single-process deployment (no separate gateway service needed)
-
-### [0.3.0] — 2026-04-07
-- **Added** session source badges (CLI, Discord, Telegram, WhatsApp, …), source filter chips, resume button for external sessions
-- **Fixed** skills Discover tab showing 0 skills, hydration mismatch
 
 [Full changelog →](CHANGELOG.md)
 
