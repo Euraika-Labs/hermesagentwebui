@@ -223,12 +223,27 @@ export async function installHubSkill(identifier: string, category?: string): Pr
     // Override HERMES_HOME to the root (~/.hermes) so skills install to the
     // global dir and survive profile resets.
     const env = { ...process.env, HERMES_HOME: getHermesHome() };
-    await execFileAsync('hermes', args, {
+    const { stdout = '', stderr = '' } = await execFileAsync('hermes', args, {
       encoding: 'utf-8',
       timeout: 30000,
       env,
     });
-    return { success: true };
+
+    const output = `${stdout}\n${stderr}`.trim();
+    const normalized = output.toLowerCase();
+
+    if (normalized.includes('error:') || normalized.includes('could not fetch')) {
+      return { success: false, error: output || `Failed to install ${identifier}` };
+    }
+
+    if (normalized.includes('installed:') || normalized.includes('already installed')) {
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      error: output || `Install command for ${identifier} did not confirm success`,
+    };
   } catch (error) {
     return { success: false, error: String(error) };
   }

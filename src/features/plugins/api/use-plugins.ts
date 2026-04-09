@@ -6,6 +6,7 @@ import type { Plugin } from '@/lib/types/plugin';
 
 type PluginsResponse = { plugins: Plugin[] };
 type PluginResponse = { plugin: Plugin };
+type InstallPluginResponse = { success: boolean; identifier: string };
 
 export function usePlugins() {
   return useQuery({
@@ -27,8 +28,8 @@ export function usePluginDetail(id: string) {
 export function useInstallPlugin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { repo: string }) =>
-      apiFetch<PluginResponse>('/api/plugins/install', {
+    mutationFn: (payload: { identifier: string }) =>
+      apiFetch<InstallPluginResponse>('/api/plugins/install', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),

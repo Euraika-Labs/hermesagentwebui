@@ -41,36 +41,40 @@ export type McpHubSearchResult = {
 // ---------------------------------------------------------------------------
 
 type RegistryPackage = {
-  registry_name?: string;
-  name?: string;
+  registryType?: string;
+  identifier?: string;
   version?: string;
-  package_canonical?: string;
+  transport?: { type?: string; url?: string };
+  environmentVariables?: Array<{
+    name?: string;
+    description?: string;
+    isRequired?: boolean;
+    isSecret?: boolean;
+  }>;
 };
 
 type RegistryServer = {
-  id?: string;
-  name?: string;
-  title?: string;
-  description?: string;
-  vendor?: string;
-  sourceUrl?: string;
-  homepage?: string;
-  license?: string;
-  runtime?: string;
-  transport?: string[];
-  packages?: RegistryPackage[];
-  remoteEndpoints?: Array<{ url?: string }>;
-  tools?: Array<{ name?: string }>;
-  prompts?: Array<{ name?: string }>;
-  resources?: Array<{ name?: string }>;
-  categories?: string[];
-  tags?: string[];
-  icons?: { light?: string; dark?: string };
+  server?: {
+    name?: string;
+    title?: string;
+    description?: string;
+    repository?: { url?: string; source?: string };
+    websiteUrl?: string;
+    version?: string;
+    remotes?: Array<{ type?: string; url?: string }>;
+    packages?: RegistryPackage[];
+    tools?: Array<{ name?: string }>;
+    tags?: string[];
+    categories?: string[];
+    icons?: Array<{ src?: string }>;
+  };
   _meta?: {
-    isLatest?: boolean;
-    status?: string;
-    createdAt?: string;
-    updatedAt?: string;
+    'io.modelcontextprotocol.registry/official'?: {
+      isLatest?: boolean;
+      status?: string;
+      publishedAt?: string;
+      updatedAt?: string;
+    };
   };
 };
 
@@ -147,53 +151,66 @@ async function writeSyncState(state: { lastSync: string }): Promise<void> {
   await fs.writeFile(SYNC_STATE_FILE(), JSON.stringify(state), 'utf-8');
 }
 
-function deriveInstallCommand(packages?: RegistryPackage[]): { installCommand?: string; npmPackage?: string } {
+function deriveInstallCommand(packages?: RegistryPackage[]): {
+  installCommand?: string;
+  npmPackage?: string;
+  requiredEnv?: Array<{ name: string; description?: string }>;
+} {
   if (!packages?.length) return {};
   for (const pkg of packages) {
-    const name = pkg.registry_name || pkg.name || pkg.package_canonical;
+    const name = pkg.identifier;
+    const registryType = pkg.registryType?.toLowerCase();
     if (!name) continue;
-    if (pkg.registry_name === 'npm' || pkg.package_canonical?.startsWith('npm:')) {
-      return { installCommand: `npx -y ${name}`, npmPackage: name };
+    const requiredEnv = (pkg.environmentVariables || [])
+      .filter((variable) => variable?.name && variable.isRequired)
+      .map((variable) => ({
+        name: String(variable.name),
+        description: variable.description,
+      }));
+
+    if (registryType === 'npm' && pkg.transport?.type === 'stdio') {
+      return { installCommand: `npx -y ${name}`, npmPackage: name, requiredEnv };
     }
-    if (pkg.registry_name === 'pypi' || pkg.package_canonical?.startsWith('pypi:')) {
-      return { installCommand: `uvx ${name}` };
+    if (registryType === 'pypi' && pkg.transport?.type === 'stdio') {
+      return { installCommand: `uvx ${name}`, requiredEnv };
     }
-    if (pkg.registry_name === 'docker' || pkg.package_canonical?.startsWith('docker:')) {
-      return { installCommand: `docker run -i --rm ${name}` };
+    if (registryType === 'docker' && pkg.transport?.type === 'stdio') {
+      return { installCommand: `docker run -i --rm ${name}`, requiredEnv };
     }
   }
-  // Fallback: use the first package with any name
-  const first = packages[0];
-  const fallbackName = first.registry_name || first.name || first.package_canonical;
-  if (fallbackName) return { installCommand: fallbackName };
   return {};
 }
 
 function mapRegistryServer(raw: RegistryServer): McpHubServer {
-  const { installCommand, npmPackage } = deriveInstallCommand(raw.packages);
-  const transport = raw.transport?.includes('stdio')
+  const server = raw.server || {};
+  const officialMeta = raw._meta?.['io.modelcontextprotocol.registry/official'];
+  const { installCommand, npmPackage, requiredEnv } = deriveInstallCommand(server.packages);
+  const remoteTypes = (server.remotes || []).map((remote) => remote.type || '');
+  const packageTransports = (server.packages || []).map((pkg) => pkg.transport?.type || '');
+  const transport = packageTransports.includes('stdio')
     ? 'stdio'
-    : raw.transport?.includes('http') || raw.transport?.includes('streamable-http') || raw.transport?.includes('sse')
+    : remoteTypes.includes('http') || remoteTypes.includes('streamable-http') || remoteTypes.includes('sse')
       ? 'http'
       : 'stdio';
+  const primaryIcon = server.icons?.find((icon) => icon.src)?.src;
 
   return {
-    id: raw.id || raw.name || '',
-    name: raw.name || '',
-    title: raw.title || raw.name || '',
-    description: raw.description || '',
-    author: raw.vendor || '',
+    id: server.name || '',
+    name: server.name || '',
+    title: server.title || server.name || '',
+    description: server.description || '',
+    author: server.repository?.source || '',
     transport: transport as 'stdio' | 'http',
-    version: raw.packages?.[0]?.version || '0.0.0',
-    repository: raw.sourceUrl,
-    websiteUrl: raw.homepage,
+    version: server.version || server.packages?.[0]?.version || '0.0.0',
+    repository: server.repository?.url,
+    websiteUrl: server.websiteUrl,
     installCommand,
     npmPackage,
-    category: raw.categories?.[0] || 'uncategorized',
-    verified: raw._meta?.status === 'active',
-    requiredEnv: undefined, // Registry v0.1 does not expose required env
-    tools: (raw.tools || []).map((t) => t.name || '').filter(Boolean),
-    icons: raw.icons,
+    category: server.categories?.[0] || server.tags?.[0] || 'uncategorized',
+    verified: officialMeta?.status === 'active',
+    requiredEnv,
+    tools: (server.tools || []).map((t) => t.name || '').filter(Boolean),
+    icons: primaryIcon ? { light: primaryIcon, dark: primaryIcon } : undefined,
   };
 }
 
@@ -226,7 +243,10 @@ async function fetchAllServers(updatedSince?: string): Promise<RegistryServer[]>
     const servers = page.servers || [];
     // Filter to latest & active entries
     const filtered = servers.filter(
-      (s) => (s._meta?.isLatest ?? true) && (s._meta?.status ?? 'active') === 'active',
+      (s) => {
+        const official = s._meta?.['io.modelcontextprotocol.registry/official'];
+        return (official?.isLatest ?? true) && (official?.status ?? 'active') === 'active';
+      },
     );
     all.push(...filtered);
     cursor = page.metadata?.nextCursor ?? undefined;
@@ -306,14 +326,19 @@ async function getFuseIndex(servers: McpHubServer[]): Promise<Fuse<McpHubServer>
  * Return all cached MCP hub servers.
  */
 export async function listHubMcpServers(): Promise<McpHubServer[]> {
-  return readCacheFile();
+  let servers = await readCacheFile();
+  if (servers.length === 0) {
+    await syncRegistry();
+    servers = await readCacheFile();
+  }
+  return servers;
 }
 
 /**
  * Fuse.js search across name/title/description.
  */
 export async function searchHubMcpServers(query: string): Promise<McpHubSearchResult> {
-  const servers = await readCacheFile();
+  const servers = await listHubMcpServers();
   if (!query.trim()) {
     return { servers, total: servers.length, filtered: servers.length };
   }

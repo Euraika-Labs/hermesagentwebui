@@ -1,5 +1,6 @@
 import { execFile as execFileCb } from 'node:child_process';
 import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 import { parse, parseDocument } from 'yaml';
@@ -43,6 +44,27 @@ async function getDisabledPlugins(): Promise<Set<string>> {
   const configPath = path.join(home, 'config.yaml');
   const config = await readYaml<PluginsConfigShape>(configPath);
   return new Set(config?.plugins?.disabled || []);
+}
+
+async function validatePluginDirectory(pluginDir: string): Promise<PluginYaml> {
+  const yamlPath = path.join(pluginDir, 'plugin.yaml');
+  const initPath = path.join(pluginDir, '__init__.py');
+
+  const manifest = await readYaml<PluginYaml>(yamlPath);
+  if (!manifest) {
+    throw new Error('Repository does not contain a valid plugin.yaml manifest.');
+  }
+
+  try {
+    const stat = await fs.stat(initPath);
+    if (!stat.isFile()) {
+      throw new Error('Plugin entrypoint is not a file.');
+    }
+  } catch {
+    throw new Error('Repository does not contain the required __init__.py plugin entrypoint.');
+  }
+
+  return manifest;
 }
 
 function parsePluginYaml(raw: PluginYaml, pluginDir: string, source: Plugin['source']): Omit<Plugin, 'enabled'> {
@@ -133,12 +155,37 @@ export async function installPlugin(identifier: string): Promise<void> {
     await fs.mkdir(pluginsDir, { recursive: true });
     const repoName = identifier.split('/')[1];
     const targetDir = path.join(pluginsDir, repoName);
-    await execFile('git', ['clone', '--depth', '1', `https://github.com/${identifier}.git`, targetDir]);
-  } else if (PIP_PACKAGE_RE.test(identifier)) {
-    await execFile('pip', ['install', '--user', identifier]);
-  } else {
-    throw new Error(`Invalid plugin identifier: "${identifier}". Expected owner/repo or pip package name.`);
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pan-plugin-'));
+    const cloneDir = path.join(tempDir, repoName);
+
+    try {
+      await fs.access(targetDir).then(
+        () => Promise.reject(new Error(`Plugin "${repoName}" is already installed.`)),
+        () => Promise.resolve(),
+      );
+      await execFile('git', ['clone', '--depth', '1', `https://github.com/${identifier}.git`, cloneDir]);
+      await validatePluginDirectory(cloneDir);
+      await fs.rename(cloneDir, targetDir);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+    return;
   }
+
+  if (PIP_PACKAGE_RE.test(identifier)) {
+    await execFile('pip', ['install', '--user', identifier]);
+    const plugin = await getPluginDetail(identifier);
+    if (!plugin) {
+      await execFile('pip', ['uninstall', '-y', identifier]).catch(() => undefined);
+      throw new Error(
+        `Package "${identifier}" installed but did not provide a discoverable Hermes plugin. ` +
+          'Pan currently requires a real plugin manifest and entrypoint.',
+      );
+    }
+    return;
+  }
+
+  throw new Error(`Invalid plugin identifier: "${identifier}". Expected owner/repo or pip package name.`);
 }
 
 export async function removePlugin(id: string): Promise<void> {

@@ -1,5 +1,5 @@
 import type { Skill } from '@/lib/types/skill';
-import { updateSession } from '@/server/chat/session-store';
+import { getSession, updateSession } from '@/server/chat/session-store';
 import { validateSkillContent } from '@/server/hermes/yaml-config';
 
 const nowIso = () => new Date().toISOString();
@@ -148,12 +148,15 @@ export function loadSkillIntoSession(skillId: string, sessionId: string) {
   skill.updatedAt = nowIso();
   skills.set(skill.id, skill);
 
-  updateSession(sessionId, (session) => {
-    const loadedSkills = session.loadedSkillIds ?? [];
-    if (!loadedSkills.includes(skillId)) {
-      session.loadedSkillIds = [skillId, ...loadedSkills];
-    }
-  });
+  const session = getSession(sessionId);
+  if (session) {
+    updateSession(sessionId, (currentSession) => {
+      const loadedSkills = currentSession.loadedSkillIds ?? [];
+      if (!loadedSkills.includes(skillId)) {
+        currentSession.loadedSkillIds = [skillId, ...loadedSkills];
+      }
+    });
+  }
 
   return skill;
 }

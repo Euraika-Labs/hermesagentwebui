@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { loadSkillIntoSession } from '@/server/skills/skill-store';
+import { updateSession } from '@/server/chat/session-store';
 import { getSelectedProfileFromCookie } from '@/server/hermes/profile-cookie';
-import { addRealSessionLoadedSkill } from '@/server/hermes/real-sessions';
-import { getRealSkill, loadRealSkillIntoSession } from '@/server/hermes/real-skills';
+import { addRealSessionLoadedSkill, getRealSession } from '@/server/hermes/real-sessions';
+import { getRealSkill } from '@/server/hermes/real-skills';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,13 +14,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const profileId = await getSelectedProfileFromCookie();
     const realSkill = getRealSkill(profileId, id);
+    const realSession = getRealSession(profileId, body.sessionId);
+
     const skill = realSkill
-      ? { ...realSkill, loadedInSessions: [body.sessionId] }
+      ? {
+          ...realSkill,
+          loadedInSessions: Array.from(
+            new Set([...(realSkill.loadedInSessions ?? []), body.sessionId]),
+          ),
+        }
       : loadSkillIntoSession(id, body.sessionId);
-    if (realSkill) {
-      loadRealSkillIntoSession(profileId, body.sessionId, id);
+
+    if (realSession) {
       addRealSessionLoadedSkill(profileId, body.sessionId, id);
+    } else {
+      updateSession(body.sessionId, (session) => {
+        const loadedSkillIds = session.loadedSkillIds ?? [];
+        if (!loadedSkillIds.includes(id)) {
+          session.loadedSkillIds = [id, ...loadedSkillIds];
+        }
+      });
     }
+
     return NextResponse.json({ skill });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load skill into session' }, { status: 404 });

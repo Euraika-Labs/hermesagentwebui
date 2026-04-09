@@ -31,7 +31,7 @@ export function InstallPluginDialog({ open, onClose }: InstallPluginDialogProps)
     }
     setError(null);
     try {
-      await installPlugin.mutateAsync({ repo });
+      await installPlugin.mutateAsync({ identifier: repo });
       setRepo('');
       setError(null);
       onClose();
