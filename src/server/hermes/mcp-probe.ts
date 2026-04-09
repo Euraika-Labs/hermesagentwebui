@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { execCli } from '@/server/core/cli';
 import { getProfileConfigPath } from '@/server/hermes/paths';
-import { getMcpProbeResult, persistMcpProbeResult } from '@/server/runtime/runtime-store';
+import { deleteMcpProbeResults, getMcpProbeResult, persistMcpProbeResult } from '@/server/runtime/runtime-store';
 
 export type McpTool = { name: string; description: string };
 export type McpProbeResult = {
@@ -39,6 +41,15 @@ function buildProbeCacheKey(configPath: string, serverName: string) {
   return `v3:${configPath}:${serverName}:${digest}`;
 }
 
+function getHermesProbePython() {
+  const candidates = [
+    path.join(os.homedir(), '.hermes', 'hermes-agent', 'venv', 'bin', 'python3'),
+    path.join(os.homedir(), '.hermes', 'hermes-agent', '.venv', 'bin', 'python3'),
+    'python3',
+  ];
+  return candidates.find((candidate) => candidate === 'python3' || fs.existsSync(candidate)) || 'python3';
+}
+
 function remediationHints(errorText?: string) {
   const message = (errorText || '').toLowerCase();
   const hints = new Set<string>();
@@ -63,10 +74,11 @@ function remediationHints(errorText?: string) {
 
 export function invalidateMcpProbe(profileId: string | null | undefined, serverName: string) {
   const configPath = getProfileConfigPath(profileId);
-  const prefix = `${configPath}:${serverName}:`;
+  const prefix = `v3:${configPath}:${serverName}:`;
   for (const key of probeCache.keys()) {
     if (key.startsWith(prefix)) probeCache.delete(key);
   }
+  deleteMcpProbeResults(profileId, serverName);
 }
 
 export function probeMcpServer(profileId: string | null | undefined, serverName: string, options?: { force?: boolean }): McpProbeOutcome {
@@ -105,7 +117,7 @@ export function probeMcpServer(profileId: string | null | undefined, serverName:
 
   try {
     const out = execCli(
-      'python3',
+      getHermesProbePython(),
       [
         '-c',
         `import json, sys, yaml

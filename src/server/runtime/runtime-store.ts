@@ -174,6 +174,14 @@ conn.commit()
 `, [payload.cacheKey, payload.profileId || '', payload.serverName, payload.success ? '1' : '0', JSON.stringify(payload.tools), payload.errorText || '', nowIso()]);
 }
 
+export function deleteMcpProbeResults(profileId: string | null | undefined, serverName: string) {
+  pyExec(`import sqlite3, sys
+conn=sqlite3.connect(sys.argv[1])
+conn.execute("DELETE FROM mcp_probe_results WHERE profile_id=? AND server_name=?", (sys.argv[2], sys.argv[3]))
+conn.commit()
+`, [profileId || '', serverName]);
+}
+
 export function getMcpProbeResult(cacheKey: string) {
   return pyExecJson<Record<string, unknown> | null>(`import sqlite3, json, sys
 conn=sqlite3.connect(sys.argv[1])
