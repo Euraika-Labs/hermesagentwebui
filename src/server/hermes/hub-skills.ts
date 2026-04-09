@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { getEffectiveHome, getHermesHome } from '@/server/hermes/paths';
+
+const execFileAsync = promisify(execFile);
 
 export type HubSkill = {
   id: string;
@@ -195,9 +198,9 @@ export function listHubSkills(): HubSkill[] {
 /**
  * Search skills.sh via the hermes CLI. Returns results from the live search.
  */
-export function searchHubSkills(query: string, source = 'skills-sh', limit = 20): HubSkill[] {
+export async function searchHubSkills(query: string, source = 'skills-sh', limit = 20): Promise<HubSkill[]> {
   try {
-    execFileSync('hermes', ['skills', 'search', query, '--source', source, '--limit', String(limit)], {
+    await execFileAsync('hermes', ['skills', 'search', query, '--source', source, '--limit', String(limit)], {
       encoding: 'utf-8',
       timeout: 15000,
     });
@@ -213,14 +216,14 @@ export function searchHubSkills(query: string, source = 'skills-sh', limit = 20)
 /**
  * Install a skill from the hub via hermes CLI.
  */
-export function installHubSkill(identifier: string, category?: string): { success: boolean; error?: string } {
+export async function installHubSkill(identifier: string, category?: string): Promise<{ success: boolean; error?: string }> {
   try {
     const args = ['skills', 'install', identifier, '--yes'];
     if (category) args.push('--category', category);
     // Override HERMES_HOME to the root (~/.hermes) so skills install to the
     // global dir and survive profile resets.
     const env = { ...process.env, HERMES_HOME: getHermesHome() };
-    execFileSync('hermes', args, {
+    await execFileAsync('hermes', args, {
       encoding: 'utf-8',
       timeout: 30000,
       env,
@@ -234,12 +237,11 @@ export function installHubSkill(identifier: string, category?: string): { succes
 /**
  * Uninstall a hub-installed skill.
  */
-export function uninstallHubSkill(identifier: string): { success: boolean; error?: string } {
+export async function uninstallHubSkill(identifier: string): Promise<{ success: boolean; error?: string }> {
   try {
-    execFileSync('hermes', ['skills', 'uninstall', identifier], {
+    await execFileAsync('hermes', ['skills', 'uninstall', identifier], {
       encoding: 'utf-8',
       timeout: 15000,
-      input: 'y\n',
     });
     return { success: true };
   } catch (error) {

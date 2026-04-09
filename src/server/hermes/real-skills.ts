@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { Skill } from '@/lib/types/skill';
 import { getHermesHome, getProfileConfigPath, getProfileSkillsDir, getProfileStateDb } from '@/server/hermes/paths';
 import { readSqliteJson } from '@/server/hermes/sqlite-bridge';
 import { parseYamlFrontmatter, readYamlFile, validateSkillContent, writeYamlFile } from '@/server/hermes/yaml-config';
+
+const execFileAsync = promisify(execFile);
 
 type SkillsConfigShape = {
   skills?: {
@@ -245,8 +248,8 @@ export function listRealSkillCategories(profileId: string | null | undefined): s
   return Array.from(categories).sort();
 }
 
-export function loadRealSkillIntoSession(profileId: string | null | undefined, sessionId: string, skillId: string) {
-  execFileSync('hermes', ['skills', 'list'], { encoding: 'utf-8' });
+export async function loadRealSkillIntoSession(profileId: string | null | undefined, sessionId: string, skillId: string) {
+  await execFileAsync('hermes', ['skills', 'list'], { encoding: 'utf-8', timeout: 15000 });
   const dbPath = getProfileStateDb(profileId);
   if (!fs.existsSync(dbPath)) return skillId;
   readSqliteJson(

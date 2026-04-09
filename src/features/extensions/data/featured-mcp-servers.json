@@ -1,0 +1,22 @@
+[
+  "@modelcontextprotocol/server-filesystem",
+  "@modelcontextprotocol/server-github",
+  "@modelcontextprotocol/server-postgres",
+  "@modelcontextprotocol/server-sqlite",
+  "@modelcontextprotocol/server-brave-search",
+  "@modelcontextprotocol/server-google-maps",
+  "@modelcontextprotocol/server-slack",
+  "@modelcontextprotocol/server-memory",
+  "@modelcontextprotocol/server-puppeteer",
+  "@modelcontextprotocol/server-fetch",
+  "@modelcontextprotocol/server-sequential-thinking",
+  "playwright-mcp",
+  "mcp-server-docker",
+  "@anthropic/mcp-server-claude",
+  "mcp-server-kubernetes",
+  "@stripe/agent-toolkit",
+  "mcp-server-notion",
+  "mcp-server-linear",
+  "mcp-server-discord",
+  "mcp-server-youtube-transcript"
+]

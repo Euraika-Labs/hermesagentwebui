@@ -901,3 +901,279 @@ Start with Tasks 1-11 and build a thin vertical slice:
 - basic tool event rendering
 
 That slice will validate the architecture before deeper feature investment.
+
+---
+
+## Phase 11: Marketplace — MCP Server Hub
+
+### Task 51: Create MCP registry client and background sync
+**Objective:** Fetch and cache all servers from the Official MCP Registry without blocking API routes.
+
+**Files:**
+- Create: `src/server/hermes/hub-mcp.ts`
+- Create: `src/server/hermes/mcp-registry-types.ts`
+
+**Implementation notes:**
+- Use `fetch()` with cursor pagination against `registry.modelcontextprotocol.io/v0.1/servers?limit=100`
+- Follow `metadata.nextCursor` until exhausted
+- Filter: `isLatest: true`, `status: "active"`
+- Write cache to `~/.hermes/profiles/{id}/.mcp-hub-cache/mcp-registry.json`
+- Use `setInterval` on module load (every 6 hours) for background refresh
+- Support incremental sync via `updated_since` query parameter
+- NEVER use execFileSync — all I/O is async
+
+**Verification:**
+- Cache file populated with 10,000+ entries within 60s of server start
+- `await listHubMcpServers()` returns results without triggering a fetch
+
+### Task 52: Build Fuse.js search index singleton
+**Objective:** Fast local search across 13,000+ MCP server records.
+
+**Files:**
+- Modify: `src/server/hermes/hub-mcp.ts`
+
+**Implementation notes:**
+- Module-level Fuse.js instance, initialized on first access
+- Index fields: name, title, description (weighted)
+- Track cache file mtime; rebuild index only when cache changes
+- For future-proofing: if records exceed 20K, switch to better-sqlite3 with FTS5
+- `searchHubMcpServers(query)` wraps Fuse search, returns typed results
+
+**Verification:**
+- Search completes in <50ms for common queries
+- Index is shared across requests (not rebuilt per-call)
+
+### Task 53: Create MCP Hub API routes
+**Objective:** REST endpoints for hub browse and install.
+
+**Files:**
+- Create: `src/app/api/extensions/hub/route.ts`
+- Create: `src/app/api/extensions/hub/install/route.ts`
+
+**Implementation notes:**
+- GET handler: parse `q` query param, call searchHubMcpServers, exclude already-installed (compare against listRealExtensions by name)
+- POST install handler: validate identifier with regex `^[a-zA-Z0-9][a-zA-Z0-9._-]*/[a-zA-Z0-9._-]*$`, derive install command from `packages[]` data, use async `execFile` with 30s timeout
+- Write to config.yaml using `eemeli/yaml` `YAML.parseDocument()` to preserve comments
+- Return 400 on invalid identifier, 500 on install failure with clear error message
+
+**Verification:**
+- GET returns filtered, paginated results
+- POST successfully installs an MCP server and it appears in the installed list
+- config.yaml comments are preserved after write
+
+### Task 54: Create MCP Hub UI components
+**Objective:** Browsable server grid in the Extensions page.
+
+**Files:**
+- Modify: `src/features/extensions/components/extensions-screen.tsx` (add Discover tab)
+- Create: `src/features/extensions/components/mcp-hub.tsx`
+- Create: `src/features/extensions/components/mcp-hub-card.tsx`
+- Create: `src/features/extensions/api/use-mcp-hub.ts`
+
+**Implementation notes:**
+- Follow the exact pattern from skills-screen.tsx: two tabs ("Installed" | "Discover")
+- React Query hook: `useHubMcpServers(query?)` with queryKey `['hub-mcp', query ?? '']`
+- Search form: controlled input, query dispatched on submit
+- 3-column responsive grid (like skills hub)
+- Card shows: name, description, author, transport badge (stdio/http), verified badge
+
+**Verification:**
+- Discover tab renders and shows MCP servers
+- Search filters results
+- Cards display all required fields
+
+### Task 55: Create MCP install wizard dialog
+**Objective:** Guided install flow with env var configuration and tool checks.
+
+**Files:**
+- Create: `src/features/extensions/components/mcp-install-dialog.tsx`
+- Create: `src/features/extensions/components/env-var-input.tsx`
+
+**Implementation notes:**
+- Multi-step dialog: server info → env var config → confirm install
+- Each env var input: label, description (from registry metadata), validation hint, secret toggle
+- Pre-flight checks: probe for required tools (npx, uv, docker) via async execFile('which', [tool])
+- Pin to exact version from `packages[].version`, never `latest`
+- On success: invalidate queries `['extensions']`, `['hub-mcp']`; close dialog
+- On failure: show error message, do NOT leave config.yaml in partial state
+
+**Verification:**
+- Env var inputs show description and masked input for secrets
+- Missing tool warning appears when required runtime is not installed
+- Install succeeds end-to-end for a stdio MCP server
+
+### Task 56: Add featured servers curation and trust badges
+**Objective:** Curated default view with security trust indicators.
+
+**Files:**
+- Create: `src/features/extensions/data/featured-mcp-servers.json`
+- Create: `src/features/extensions/components/trust-badge.tsx`
+- Modify: `src/features/extensions/components/mcp-hub.tsx` (add Featured sub-tab)
+- Modify: `src/features/extensions/components/mcp-hub-card.tsx` (add badge)
+
+**Implementation notes:**
+- Featured list: JSON array of server names (15-30 entries), loaded at build time
+- Trust levels: "Verified" (official registry + Smithery verified), "Community" (official registry only), "Unreviewed" (neither)
+- Featured is the DEFAULT sub-tab; "All Servers" is secondary
+- Badge colors: green (verified), blue (community), gray (unreviewed)
+
+**Verification:**
+- Discover tab opens to Featured by default
+- Trust badges appear on all server cards
+- Featured list loads from JSON config (not hardcoded in component)
+
+---
+
+## Phase 12: Marketplace — Plugin Management
+
+### Task 57: Create plugin backend service
+**Objective:** Read and serve plugin metadata from the filesystem.
+
+**Files:**
+- Create: `src/server/hermes/real-plugins.ts`
+- Create: `src/lib/types/plugin.ts`
+
+**Implementation notes:**
+- Scan `~/.hermes/plugins/*/plugin.yaml` for user plugins
+- Scan `~/.hermes/hermes-agent/plugins/memory/*/plugin.yaml` for builtins
+- Parse with `eemeli/yaml`: name, version, description, provides_tools[], requires_env[]
+- Check `config.yaml → plugins.disabled[]` for enabled state
+- Handle gracefully: missing files, malformed YAML, permission errors
+
+**Verification:**
+- Returns correct list mixing user and builtin plugins
+- Disabled state matches config.yaml
+
+### Task 58: Create plugin API routes
+**Objective:** CRUD endpoints for plugin management.
+
+**Files:**
+- Create: `src/app/api/plugins/route.ts`
+- Create: `src/app/api/plugins/[id]/route.ts`
+- Create: `src/app/api/plugins/[id]/enable/route.ts`
+- Create: `src/app/api/plugins/install/route.ts`
+
+**Implementation notes:**
+- All `execFile` calls: async, array form, 30s timeout
+- Install: validate `owner/repo` format, then `execFile('hermes', ['plugins', 'install', identifier])`
+- Remove: only for user plugins, not builtins
+- Enable/disable: read config.yaml with parseDocument, toggle disabled array, write back preserving comments
+- Input sanitization on all endpoints
+
+**Verification:**
+- CRUD works for user plugins
+- Builtin plugins cannot be deleted (returns 403)
+- config.yaml comments survive enable/disable toggle
+
+### Task 59: Create plugin UI feature
+**Objective:** Plugins page with list, detail, and management.
+
+**Files:**
+- Create: `src/app/plugins/page.tsx`
+- Create: `src/features/plugins/plugins-screen.tsx`
+- Create: `src/features/plugins/components/plugin-card.tsx`
+- Create: `src/features/plugins/components/install-plugin-dialog.tsx`
+- Create: `src/features/plugins/api/use-plugins.ts`
+- Modify: `src/components/layout/sidebar.tsx` (add Plugins nav item)
+
+**Implementation notes:**
+- Add "Plugins" to sidebar navItems array (after Integrations, use Puzzle icon from lucide-react)
+- Plugin card: name, version, author, enabled toggle, provided tools count
+- Install dialog: GitHub owner/repo input with pre-flight validation
+- React Query: `usePlugins()` queryKey `['plugins']`, invalidate on mutations
+
+**Verification:**
+- /plugins route renders and lists all plugins
+- Enable/disable toggle works
+- Install flow works for a valid GitHub plugin repo
+- Sidebar shows Plugins entry
+
+---
+
+## Phase 13: Marketplace — Unified Shell and Hardening
+
+### Task 60: Create unified marketplace page
+**Objective:** Single /marketplace entry point with tabs for all extension types.
+
+**Files:**
+- Create: `src/app/marketplace/page.tsx`
+- Create: `src/features/marketplace/marketplace-screen.tsx`
+- Create: `src/features/marketplace/api/use-marketplace-search.ts`
+
+**Implementation notes:**
+- Three tabs: Skills | MCP Servers | Plugins
+- Each tab embeds existing hub component (skills hub grid, mcp hub grid, plugin list)
+- Unified search bar: dispatches parallel queries to all three backends
+- Merge results: group by type, rank by relevance
+- Debounce search input (300ms)
+- Add to sidebar (consider replacing individual Discover tabs with single Marketplace entry)
+
+**Verification:**
+- /marketplace renders with three working tabs
+- Unified search returns mixed results from all sources
+- Tab switching preserves search query
+
+### Task 61: Remove all execFileSync usage
+**Objective:** Eliminate event loop blocking across the entire codebase.
+
+**Files:**
+- Modify: `src/server/hermes/hub-skills.ts` (existing execFileSync calls)
+- Modify: any other files found by audit
+- Create: `.eslintrc` rule or `scripts/check-no-sync-exec.sh`
+
+**Implementation notes:**
+- Replace `execFileSync` with `const { execFile } = require('child_process'); const execFileAsync = util.promisify(execFile);`
+- Always use array form: `execFileAsync('hermes', ['skills', 'install', id], { timeout: 30000 })`
+- Add CI check: `grep -r "execFileSync" src/ && exit 1 || exit 0`
+
+**Verification:**
+- `grep -r "execFileSync" src/` returns zero results
+- All install/search flows still work (async version)
+- CI check runs on every PR
+
+### Task 62: Marketplace E2E tests
+**Objective:** Automated testing for marketplace flows.
+
+**Files:**
+- Create: `tests/e2e/marketplace.spec.ts`
+- Create: `tests/e2e/mcp-hub.spec.ts`
+- Create: `tests/e2e/plugins.spec.ts`
+
+**Implementation notes:**
+- Test: Discover tab loads MCP servers, search filters results, install wizard opens
+- Test: Plugins page lists plugins, enable/disable works
+- Test: Marketplace unified search returns mixed results
+- Mock the registry API responses for deterministic tests
+
+**Verification:**
+- All new E2E tests pass in CI
+- Tests run against mock data (no external API dependency)
+
+---
+
+## Recommended Task Order for Marketplace Milestone
+
+Implement in this order:
+1. Task 51-52: registry client and search index (backend foundation)
+2. Task 53: API routes (backend complete)
+3. Task 54-56: MCP Hub UI, install wizard, featured/trust (frontend complete for MCP)
+4. Task 57-58: plugin backend and API (backend for plugins)
+5. Task 59: plugin UI (frontend for plugins)
+6. Task 60: unified marketplace shell (ties it all together)
+7. Task 61: execFileSync removal (hardening, can run in parallel)
+8. Task 62: E2E tests (final verification)
+
+---
+
+## Definition of Done for Marketplace (Beta)
+
+The Marketplace milestone is done when:
+- a user can browse 13,000+ MCP servers in the Discover tab
+- search returns relevant results in <500ms perceived time
+- a user can install an MCP server with guided env var configuration
+- trust badges indicate verification level on every server
+- featured servers provide a curated entry point
+- plugins are visible, manageable, and installable from /plugins
+- a unified /marketplace page searches across all extension types
+- zero execFileSync calls remain in the codebase
+- E2E tests cover the critical marketplace flows

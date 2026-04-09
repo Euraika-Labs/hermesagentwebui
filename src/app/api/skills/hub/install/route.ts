@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing identifier' }, { status: 400 });
   }
 
-  const result = installHubSkill(body.identifier, body.category);
+  const result = await installHubSkill(body.identifier, body.category);
   if (!result.success) {
     return NextResponse.json({ error: result.error ?? 'Install failed' }, { status: 500 });
   }

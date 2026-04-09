@@ -5,16 +5,17 @@ import { useRouter } from 'next/navigation';
 import { useAddMcpExtension, useExtensions } from '@/features/extensions/api/use-extensions';
 import { AddMcpServerDialog } from '@/features/extensions/components/add-mcp-server-dialog';
 import { ExtensionCard } from '@/features/extensions/components/extension-card';
+import { McpHub } from '@/features/extensions/components/mcp-hub';
 import { ToolInventory } from '@/features/extensions/components/tool-inventory';
 import { McpDiagnosticsPanel } from '@/features/settings/components/mcp-diagnostics';
 import { useRuntimeStatus } from '@/features/settings/api/use-runtime-status';
 import { describeApprovalPolicy, describeGovernance } from '@/lib/presentation/capability-labels';
 import { useUIStore } from '@/lib/store/ui-store';
 
-export function ExtensionsScreen({ initialTab = 'installed' }: { initialTab?: 'installed' | 'mcp' | 'tools' | 'approvals' | 'diagnostics' }) {
+export function ExtensionsScreen({ initialTab = 'installed' }: { initialTab?: 'installed' | 'mcp' | 'tools' | 'approvals' | 'diagnostics' | 'discover' }) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [tab, setTab] = useState<'installed' | 'mcp' | 'tools' | 'approvals' | 'diagnostics'>(initialTab);
+  const [tab, setTab] = useState<'installed' | 'mcp' | 'tools' | 'approvals' | 'diagnostics' | 'discover'>(initialTab);
   const { activeSessionId } = useUIStore();
   const extensionsQuery = useExtensions();
   const runtimeQuery = useRuntimeStatus();
@@ -70,6 +71,7 @@ export function ExtensionsScreen({ initialTab = 'installed' }: { initialTab?: 'i
         {([
           ['installed', 'Installed'],
           ['mcp', 'MCP Servers'],
+          ['discover', 'Discover'],
           ['tools', 'Tools'],
           ['approvals', 'Approvals'],
           ['diagnostics', 'Diagnostics'],
@@ -109,6 +111,8 @@ export function ExtensionsScreen({ initialTab = 'installed' }: { initialTab?: 'i
           ))}
         </div>
       ) : null}
+
+      {tab === 'discover' ? <McpHub /> : null}
 
       <AddMcpServerDialog
         open={dialogOpen}

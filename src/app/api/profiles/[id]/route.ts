@@ -10,7 +10,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   try {
     if (body.action === 'clone') {
-      const profile = cloneRealProfile(id);
+      const profile = await cloneRealProfile(id);
       addAuditEvent('profile_cloned', 'profile', profile.id, `Cloned profile ${profile.name}.`);
       return NextResponse.json({ profile });
     }

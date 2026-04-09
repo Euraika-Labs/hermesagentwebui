@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const profile = createRealProfile(name, body.policyPreset);
+    const profile = await createRealProfile(name, body.policyPreset);
     addAuditEvent('profile_created', 'profile', profile.id, `Created profile ${profile.name}.`);
     const response = NextResponse.json({ profile }, { status: 201 });
     response.cookies.set(PROFILE_COOKIE_NAME, profile.id, { path: '/' });

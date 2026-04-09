@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const query = url.searchParams.get('q');
 
   // If search query provided, trigger a live search first
-  let hubSkills = query ? searchHubSkills(query) : listHubSkills();
+  let hubSkills = query ? await searchHubSkills(query) : listHubSkills();
 
   // Filter out already-installed skills
   const profileId = await getSelectedProfileFromCookie();

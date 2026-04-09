@@ -1,195 +1,159 @@
-# Pan Roadmap
+# Pan WebUI — Internal Roadmap
 
-## Roadmap Summary
-The roadmap is structured to ship a useful self-hostable product quickly, then deepen Hermes-native functionality, then add team and ecosystem features.
+> Status: 2026-04-08 · Revised after 3-agent parallel review (technical / UX / strategy)
+> For the marketplace implementation plan in detail, see the `pan-marketplace-plan` skill.
 
-## Phase 0: Foundations / Prototype
-Target window: 2-4 weeks
+---
 
-### Goals
-- prove the core architecture
-- validate the app shell and streaming chat UX
-- confirm Hermes API/control-plane integration
+## Phase Ordering (REVISED)
 
-### Deliverables
-- app shell and navigation
-- authentication for local/private usage
-- chat page with streaming transcript
-- basic session list
-- model/provider switcher
-- initial inline tool cards
-- base theme system with dark mode
+Previous ordering:
 
-### Exit criteria
-- a user can open the app and complete a real chat
-- tool activity renders in a structured way
-- sessions can be resumed
+    Phase 2 (command palette) → Phase 3 (Teams/Admin) → Phase 4 (Marketplace)
 
-## Phase 1: MVP / Public Alpha
-Target window: 4-8 weeks
+Revised ordering (unanimous from 3 independent reviews):
 
-### Goals
-- ship a polished single-user self-hostable WebUI
-- let users manage the most important Hermes-native features without CLI usage
+    Phase 2 (close out) → Phase 3 (Marketplace) → Phase 4 (Multi-user lite)
 
-### Deliverables
-#### Chat
-- session sidebar
-- session search
-- rename/archive/delete session
-- attachments
-- per-chat settings
-- mobile-responsive composer
-- voice input
-- optional TTS playback
+**Rationale:** Marketplace serves every user. Teams serves admins. MCP Hub alone is
+the single highest-ROI item on the entire roadmap (2-3 days of work → 13,000+
+integrations). It should not sit behind multi-month enterprise auth work.
 
-#### Skills
-- installed skills list
-- inspect skill
-- install/uninstall/update skill
-- enable/disable skill
-- edit local skill source
+---
 
-#### Extensions
-- installed extensions view
-- add MCP server
-- configure auth/settings
-- test connection
-- per-tool enable/disable
-- health state badges
+## Phase 2 — Close Out (CURRENT)
 
-#### Memory
-- user memory editor
-- agent memory editor
-- session search UI
-- context inspector
+**Goal:** Ship remaining Phase 2 items and move on. No scope expansion.
 
-#### Profiles
-- list/switch profiles
-- active profile indicator
-- per-profile defaults
+- [ ] Command palette (Cmd/Ctrl-K) — ship the MVP and close
+- [x] DROP: branch visualization (unclear user demand, deferred)
+- [ ] Verify all Phase 2 acceptance criteria are green
 
-#### Safety
-- policy presets
-- risky action approval modal
-- basic audit log
+**Exit criteria:** Command palette in main, changelog entry, no open Phase 2 bugs.
+**Estimated effort:** 2-4 days.
 
-### Exit criteria
-- users can chat, install a skill, configure an MCP server, and edit memory from the WebUI
-- no CLI is required for core workflows
-- dangerous capabilities are gated
+---
 
-## Phase 2: Beta / Agent-native Depth
-Target window: 6-10 weeks
+## Phase 3 — Marketplace (NEXT — Highest Priority)
 
-### Goals
-- make the product clearly better for Hermes than generic OpenAI-compatible UIs
-- improve visibility, debugging, and workflow organization
+**Goal:** Unified discovery and one-click install for MCP Servers, Plugins, and Skills.
 
-### Deliverables
-- branch/fork visualization for sessions
-- artifact drawer or side panel
-- file/diff/result cards
-- richer tool timeline
-- background task status views
-- project/folder grouping for chats
-- keyboard shortcuts and command palette
-- stronger search across sessions, skills, and extensions
-- profile import/export
-- update/changelog views for skills and extensions
+### Phase 3a — MCP Server Hub (highest ROI, do first)
 
-### Exit criteria
-- power users can manage most Hermes workflows visually
-- the UI feels distinctively agent-native
+- "Discover" tab added to `/extensions`, mirroring Skills Hub pattern
+- Backend: `hub-mcp.ts` syncs from Official MCP Registry (registry.modelcontextprotocol.io)
+  in a background job, writes JSON cache
+- Frontend: MCP hub grid with search, install wizard with env var validation
+- Featured/Curated tab is the default — 15-30 hand-picked servers
+- Trust badges (Verified / Community / Unreviewed) ship with this phase
+- **Effort:** 8-12 new files, 5-8 days
 
-## Phase 3: Teams / Admin
-Target window: 8-12 weeks
+### Phase 3b — Plugin Management UI
 
-### Goals
-- support internal company deployments and policy-controlled usage
+- New `/plugins` route, makes plugins visible and manageable
+- Backend: `real-plugins.ts`, reads `~/.hermes/plugins/*/plugin.yaml`
+- Frontend: plugin list, install-from-git dialog, enable/disable toggle
+- **Effort:** 6-8 new files, 3-4 days
 
-### Deliverables
-- multi-user auth
-- RBAC/admin roles
-- org-level policy management
-- extension allowlists/blocklists
-- approval request workflow
-- richer audit UI
-- shared workspaces/profiles where appropriate
-- analytics for feature and extension usage
-- secrets management UX
+### Phase 3c — Unified Marketplace Shell
 
-### Exit criteria
-- teams can deploy Pan safely in shared environments
-- admins can control risk without blocking usability
+- New `/marketplace` route with tabs: Skills | MCP Servers | Plugins
+- Build the shell FIRST, fill tabs as 3a and 3b land
+- Unified search bar across all three registries
+- **Effort:** 3-5 modified files, 1-2 days
 
-## Phase 4: Ecosystem / Marketplace
-Target window: 8-16 weeks
+### Non-Negotiable Technical Requirements (all Phase 3 code)
 
-### Goals
-- turn Pan into the main ecosystem surface for extensions and skills
+1. **No `execFileSync` anywhere.** Use promisified `execFile` with array args and timeouts.
+2. **YAML via `eemeli/yaml` `parseDocument`**, never `js-yaml` (destroys comments).
+3. **Fuse.js index as module singleton**, not per-request (300ms tax on 13K records).
+4. **Registry fetch in background job**, not in API routes. Routes read cache only.
+5. **Input sanitization** — strict regex allowlist for any user-provided slug before execFile.
+6. **Version pinning** to exact registry-reported version, never `latest`.
+7. **Probe for uv/docker at boot**, surface missing tools in UI.
 
-### Deliverables
-- curated skill marketplace
-- curated extension marketplace
-- verified publisher program
-- signed package support
-- stable/beta release channels
-- rollback support
-- recommendation engine for skills/extensions
-- optional gateway inbox for messaging platforms
+**Total Phase 3 effort:** ~2-3 weeks.
 
-### Exit criteria
-- Workspace becomes the primary user-facing interface for the Hermes ecosystem
+---
+
+## Phase 4 — Multi-User Lite (AFTER Marketplace)
+
+**Goal:** Minimal multi-user support. NOT enterprise. NOT full admin suite.
+
+### Scope (IN)
+
+- OIDC login (Keycloak, Auth0, or any OIDC provider)
+- Shared workspaces (multiple users see same sessions/skills)
+- 2 roles only: admin and member
+- Per-user profile isolation (each user gets their own Hermes profile)
+- Basic workspace settings (name, invite link, member list)
+
+### Scope (OUT — deferred to v2.0 enterprise track)
+
+- Approval workflows
+- Audit logs beyond basic login/logout
+- Org policies and compliance controls
+- Analytics and usage dashboards
+- SSO group sync
+- Billing and licensing
+
+**Estimated effort:** 1-2 weeks for the lite version.
+
+---
+
+## Phase 5 — Demand-Driven (NOT pre-planned)
+
+Items move here when users request them:
+
+- Branch visualization
+- Advanced audit logging
+- Enterprise SSO group sync
+- Analytics dashboards
+- Marketplace ratings/reviews
+- Community contributions
+- Plugin marketplace (curated registry beyond git URLs)
+
+---
+
+## Risk Register
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| MCP Registry API changes (v0.2) | Medium | Pin to v0.1, monitor for breaking changes |
+| 13K servers overwhelm UI without curation | High | Featured tab mandatory, trust badges at launch |
+| execFileSync pattern copied from hub-skills.ts | High | Code review gate, lint rule if possible |
+| Plugin install via git clone is fragile | Medium | Pre-flight checks, clear error messages, timeout handling |
+| Multi-user scope creep into enterprise | High | Hard scope boundary documented above, enforce in reviews |
+| Context exhaustion during doc writing | Meta | Use large-doc-writing skill, write via execute_code |
+
+---
 
 ## Priority Matrix
 
-### P0 Must-have
-- chat streaming
-- sessions and search
-- tool cards
-- model switcher
-- auth
-- safety presets
-- skills list/install/edit
-- MCP add/test/configure
-- memory view/edit
-- profile switching
+| Item | Effort | Impact | Priority |
+|------|--------|--------|----------|
+| MCP Server Hub (3a) | 5-8 days | Unlocks 13K+ integrations | P0 — do first |
+| Command Palette (Phase 2) | 2-4 days | UX improvement | P1 — close out |
+| Plugin UI (3b) | 3-4 days | Makes plugins visible | P1 |
+| Marketplace Shell (3c) | 1-2 days | UX unification | P2 |
+| Multi-user Lite (Phase 4) | 1-2 weeks | Enables sharing | P2 |
 
-### P1 Should-have
-- attachments
-- voice/TTS
-- richer artifacts
-- session branching
-- extension health views
-- command palette
+---
 
-### P2 Nice-to-have
-- org policies
-- marketplace trust badges
-- analytics
-- gateway inbox
-- shared workspaces
+## Release Strategy
 
-## Suggested Release Strategy
-Alpha:
-- internal users and Hermes contributors
-- validate UX and runtime integration
+| Milestone | Version | Content |
+|-----------|---------|---------|
+| Alpha (current) | v0.5.x | Core features, single-user, CLI parity |
+| Beta | v0.6.x | Marketplace (MCP Hub + Plugin UI + Unified shell) |
+| RC | v0.8.x | Multi-user lite, polished UX |
+| GA | v1.0.0 | Production-ready, documented, tested |
 
-Beta:
-- self-hosters and developer teams
-- validate reliability and admin controls
+---
 
-GA:
-- broader Hermes audience
-- emphasize onboarding, stability, and extension ecosystem quality
+## Review History
 
-## Key Risks
-1. Too much surface area makes the UI cluttered
-   - mitigate with progressive disclosure and strong IA
-2. Browser access to powerful tools creates security risk
-   - mitigate with proxy enforcement, approvals, and safe presets
-3. Generic chat patterns do not fit Hermes-native workflows well
-   - mitigate by investing in tool cards, context inspector, skills, and extension UX
-4. Extension management gets messy without a clear lifecycle
-   - mitigate by enforcing install/configure/enable/test/update/remove flows
+- **2026-04-08:** 3-agent parallel review (technical architecture, product/UX, strategy).
+  All three independently concluded: swap Phase 3↔4, MCP Hub is highest ROI,
+  execFileSync must go, trust badges are security infrastructure not polish.
+  See `pan-marketplace-plan` skill for detailed findings.
