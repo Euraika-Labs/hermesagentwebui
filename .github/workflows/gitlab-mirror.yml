@@ -25,10 +25,10 @@ jobs:
           # Push branch
           if [[ "$GITHUB_REF" == refs/heads/* ]]; then
             BRANCH="${GITHUB_REF#refs/heads/}"
-            git push gitlab "HEAD:${BRANCH}" --force
+            git push gitlab "HEAD:${BRANCH}"
           fi
 
           # Push tags
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            git push gitlab "${GITHUB_REF}" --force
+            git push gitlab "${GITHUB_REF}"
           fi
