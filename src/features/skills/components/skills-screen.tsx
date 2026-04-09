@@ -45,7 +45,7 @@ function isForceableInstallError(message: string) {
   return normalized.includes('use --force to override');
 }
 
-function HubSkillCard({ skill, onInstall, installing }: { skill: HubSkill; onInstall: () => void; installing: boolean }) {
+function HubSkillCard({ skill, onInstall, installing, installsLocked }: { skill: HubSkill; onInstall: () => void; installing: boolean; installsLocked: boolean }) {
   return (
     <div className="flex flex-col rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
@@ -78,10 +78,10 @@ function HubSkillCard({ skill, onInstall, installing }: { skill: HubSkill; onIns
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onInstall(); }}
-          disabled={installing}
+          disabled={installsLocked}
           className="rounded-xl bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
         >
-          {installing ? 'Installing…' : 'Install'}
+          {installing ? 'Installing…' : installsLocked ? 'Please wait…' : 'Install'}
         </button>
         {skill.detailUrl ? (
           <a
@@ -128,6 +128,7 @@ export function SkillsScreen() {
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [blockedInstall, setBlockedInstall] = useState<BlockedInstallState | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [hiddenHubIdentifiers, setHiddenHubIdentifiers] = useState<string[]>([]);
   const { selectedProfileId, activeSessionId, setActiveSessionId } = useUIStore();
 
   useEffect(() => {
@@ -175,17 +176,22 @@ export function SkillsScreen() {
 
   // Hub skills
   const hubSkills = hubQuery.data?.skills ?? [];
+  const visibleHubSkills = hubSkills.filter((skill) => !hiddenHubIdentifiers.includes(skill.identifier));
 
   // Stats
   const enabledCount = allSkills.filter((s) => s.enabled).length;
   const withFilesCount = allSkills.filter((s) => s.linkedFiles && s.linkedFiles.length > 0).length;
 
   async function handleHubInstall(skill: HubSkill, force = false) {
+    if (installingId && installingId !== skill.id) {
+      return;
+    }
     setInstallingId(skill.id);
     setInstallError(null);
     try {
       await installHubSkill.mutateAsync({ identifier: skill.identifier, force });
       setBlockedInstall(null);
+      setHiddenHubIdentifiers((current) => (current.includes(skill.identifier) ? current : [skill.identifier, ...current]));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const blockedByScan = error instanceof ApiError ? error.code === 'blocked_scan' : isForceableInstallError(message);
@@ -206,7 +212,7 @@ export function SkillsScreen() {
         <p className="mt-2 text-sm text-muted-foreground">
           {tab === 'installed'
             ? <>Browse {allSkills.length} installed skills across {categories.length} categories.{enabledCount > 0 ? ` ${enabledCount} enabled.` : ''}{withFilesCount > 0 ? ` ${withFilesCount} include references, scripts, or templates.` : ''}</>
-            : <>Discover skills from skills.sh and other registries. {hubSkills.length} available to install{hubQuery.data?.total ? ` (${hubQuery.data.total} total, ${hubQuery.data.total - hubSkills.length} already installed)` : ''}.</>}
+            : <>Discover skills from skills.sh and other registries. {visibleHubSkills.length} available to install{hubQuery.data?.total ? ` (${hubQuery.data.total} total, ${hubQuery.data.total - visibleHubSkills.length} already installed)` : ''}.</>}
         </p>
       </div>
 
@@ -379,7 +385,7 @@ export function SkillsScreen() {
 
           {hubQuery.isLoading ? <p className="text-sm text-muted-foreground">Searching skills.sh…</p> : null}
 
-          {!hubQuery.isLoading && hubSkills.length === 0 ? (
+          {!hubQuery.isLoading && visibleHubSkills.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/70 bg-card/60 p-5 text-sm text-muted-foreground">
               {hubSearchQuery
                 ? `No skills found for "${hubSearchQuery}". Try a different search term.`
@@ -387,13 +393,20 @@ export function SkillsScreen() {
             </div>
           ) : null}
 
+          {installingId ? (
+            <div className="rounded-2xl border border-border/70 bg-card/60 p-4 text-sm text-muted-foreground">
+              A skill install is in progress. Pan temporarily locks the other install buttons so you do not fire overlapping installs and end up with stale cards.
+            </div>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {hubSkills.map((skill) => (
+            {visibleHubSkills.map((skill) => (
               <HubSkillCard
                 key={skill.id}
                 skill={skill}
                 onInstall={() => handleHubInstall(skill)}
                 installing={installingId === skill.id}
+                installsLocked={Boolean(installingId)}
               />
             ))}
           </div>
