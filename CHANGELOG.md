@@ -4,6 +4,22 @@ All notable changes to Pan by Euraika are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] — 2026-04-10
+
+### Fixed
+- **Hub skill install overrides** — blocked community skills can now be explicitly force-installed from the UI instead of failing with an unresolvable error path
+- **Hub skill security errors** — blocked installs now return explicit overrideable API state instead of generic `500` responses
+- **Skill inventory parsing** — malformed linked-file groups inside installed skills no longer crash `/api/skills`, `/api/skills/hub`, or `/api/skills/categories`
+- **Hub install UX concurrency** — installing one skill now locks the other install buttons and hides successfully installed cards immediately
+- **MCP hub installs** — installing an MCP server now persists real config instead of only attempting an ephemeral command execution
+- **MCP probe refresh** — stale probe cache and stale hub metadata no longer keep broken diagnostics or missing install metadata around
+- **MCP command allowlist resolution** — probes now correctly allow resolved command basenames such as `npx` when Hermes resolves them to absolute paths
+- **HTTP MCP install fallback** — installs like `ai.memestack/mcp` now force a fresh registry sync when cached metadata is stale or incomplete
+
+### Changed
+- **MCP reliability for fresh setups** — verified installation and test flows now work for both `ai.memestack/mcp` and `dev-fentz-envcp-envcp`
+- **README screenshots and docs** — refreshed post-0.7.0 docs polish remains on `main` and is now included in the next packaged release
+
 ## [0.7.0] — 2026-04-09
 
 ### Added
@@ -200,6 +216,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Dependabot configuration
 - Community standards (CoC, CONTRIBUTING, SECURITY, issue templates)
 
+[0.7.1]: https://github.com/Euraika-Labs/pan-ui/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Euraika-Labs/pan-ui/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Euraika-Labs/pan-ui/compare/v0.5.1...v0.5.2

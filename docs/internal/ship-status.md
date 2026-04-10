@@ -2,7 +2,7 @@
 
 Status: self-hosted beta / release-quality for admin-operated deployments
 
-Verification completed (v0.7.0)
+Verification completed (v0.7.1)
 - [x] `npm run lint`
 - [x] `npm run test` — 24/24 unit tests (vitest)
 - [x] `npm run build`

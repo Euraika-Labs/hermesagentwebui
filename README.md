@@ -241,6 +241,11 @@ npm run dev
 
 ## Recent Changes
 
+### [0.7.1] — 2026-04-10
+- **Fixed** post-0.7.0 regressions in skill installs, skill discovery parsing, MCP hub persistence, MCP probe refresh, stale hub metadata fallback, and command allowlist handling
+- **Improved** install UX so blocked community skills can be force-installed intentionally and installed cards behave more predictably
+- **Verified** current MCP install/test flows for `ai.memestack/mcp` and `dev-fentz-envcp-envcp`, plus release readiness with lint, tests, build, and dry-run packaging
+
 ### [0.7.0] — 2026-04-09
 - **Added** the full UX roadmap to `main`: chat-first workspace redesign, marketplace discovery refresh, integrations IA cleanup, compact navigation mode, and stronger login/onboarding guidance
 - **Changed** shell hierarchy, session scanability, and discovery/install surfaces so Pan feels calmer and more product-grade without losing power-user depth
